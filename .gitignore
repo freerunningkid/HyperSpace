@@ -1,0 +1,33 @@
+# Reasonix 安装文件 — 办公室重装即可
+dist/
+node.exe
+reasonix-desktop.exe
+uninstall.exe
+
+# 数据文件
+data/
+
+# Python
+__pycache__/
+*.pyc
+
+# Claude 运行垃圾（不同步）
+backups/
+debug/
+downloads/
+file-history/
+ide/
+paste-cache/
+plugins/
+session-env/
+shell-snapshots/
+tasks/
+telemetry/
+channels/
+
+# Reasonix 内部临时文件
+.reasonix/
+
+# 系统垃圾
+Thumbs.db
+Desktop.ini
