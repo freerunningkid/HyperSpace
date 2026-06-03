@@ -5,7 +5,7 @@ Tools:
   voice_speak(text: str)      — 文本转语音（edge-tts 晓晓 / SAPI5 降级）
   voice_listen(seconds: float) — 麦克风录音 → 硅基流动 SenseVoiceSmall 转写
 
-Reads speak.py + asr.py from D:/AgentWork/scripts/ — no duplication.
+Reads speak.py + asr.py from scripts/lib/ — no duplication.
 """
 
 import json
@@ -16,13 +16,12 @@ import time
 import wave
 import asyncio
 
-# ── Path setup: find AgentWork scripts ──
-AGENTWORK = r"D:\AgentWork\scripts"
-sys.path.insert(0, os.path.join(AGENTWORK, "tools"))
-sys.path.insert(0, os.path.join(AGENTWORK, "core"))
+# ── Path setup: Reasonix scripts/lib/ ──
+LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib")
+sys.path.insert(0, LIB)
 
-from speak import speak as _speak_tts  # D:\AgentWork\scripts\tools\speak.py
-from asr import transcribe as _asr     # D:\AgentWork\scripts\core\asr.py
+from speak import speak as _speak_tts  # scripts/lib/speak.py
+from asr import transcribe as _asr     # scripts/lib/asr.py
 
 import sounddevice as sd
 import numpy as np

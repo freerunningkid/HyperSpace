@@ -18,7 +18,7 @@ import subprocess
 import argparse
 
 SESSION_DIR = os.path.expanduser(r"~\.reasonix\sessions")
-SPEAK_SCRIPT = r"D:\AgentWork\scripts\tools\speak.py"
+SPEAK_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "speak.py")
 
 
 def find_latest_session() -> str | None:

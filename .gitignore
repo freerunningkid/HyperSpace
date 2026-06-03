@@ -27,7 +27,13 @@ channels/
 
 # Reasonix 内部临时文件
 .reasonix/
+.screenshot_monitor.lock
+截图/
 
 # 系统垃圾
 Thumbs.db
 Desktop.ini
+
+# Token 文件（含 API Key，严禁提交）
+*token*.json
+.env
