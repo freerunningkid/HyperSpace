@@ -1,0 +1,68 @@
+{
+  "name": "Reasonix 配置保护清单",
+  "version": "1.0",
+  "appliesTo": ["reasonix.exe"],
+  "updated": "2026-06-07",
+  "description": "所有需要保护的配置文件清单，用于备份/恢复/完整性检查",
+
+  "git_protected": {
+    "description": "已在 git 仓库中，Reasonix 更新不直接影响",
+    "files": [
+      "CLAUDE.md",
+      "scripts/launch-reasonix.ps1",
+      "scripts/reasonix-guard.ps1",
+      "scripts/start-reasonix.ps1",
+      "scripts/install-reasonix-menu.ps1",
+      "scripts/uninstall-reasonix-menu.ps1",
+      "config/reasonix/config.json"
+    ]
+  },
+
+  "needs_git_add": {
+    "description": "已存在的自定义文件，尚未 git-add，需手动或由脚本跟踪",
+    "files": [
+      "assets/greetings.json",
+      "memory/profiles/kid-relationship-deep-bond-20260605.md"
+    ]
+  },
+
+  "outside_repo": {
+    "description": "仓库外部的配置，不随 git 管理，更新后最高风险丢失",
+    "items": [
+      {
+        "id": "memory",
+        "label": "Reasonix 记忆文件",
+        "path": "%APPDATA%\\reasonix\\projects\\D--Reasonix\\memory",
+        "risk": "high",
+        "note": "用户偏好、经验、决策记录，每次会话加载"
+      },
+      {
+        "id": "wt_settings",
+        "label": "Windows Terminal 设置（Ctrl+C 绑定等）",
+        "path": "%LOCALAPPDATA%\\Packages\\Microsoft.WindowsTerminal_8wekyb3d8bbwe\\LocalState\\settings.json",
+        "risk": "high",
+        "note": "Ctrl+C=copy 的键绑定，Windows Terminal 更新会覆盖"
+      },
+      {
+        "id": "registry_contextmenu",
+        "label": "右键菜单注册表项（Reasonix 对话）",
+        "path": "HKCU:\\Software\\Classes\\Directory\\Background\\shell\\Reasonix",
+        "risk": "medium",
+        "note": "Reasonix 重装后注册表项可能丢失"
+      }
+    ]
+  },
+
+  "backup_locations": {
+    "storage": "backup/snapshot-{timestamp}/",
+    "history": "最近 10 个快照自动保留",
+    "components": {
+      "memory": "backup/snapshot-{timestamp}/memory/",
+      "wt_settings": "backup/snapshot-{timestamp}/windows-terminal-settings.json",
+      "registry": "backup/snapshot-{timestamp}/reasonix-contextmenu.reg",
+      "config_json": "backup/snapshot-{timestamp}/reasonix-config.json"
+    }
+  },
+
+  "restore_instructions": "运行 scripts/restore-snapshot.ps1 -Snapshot <目录名> 恢复，不指定则用最新快照"
+}
