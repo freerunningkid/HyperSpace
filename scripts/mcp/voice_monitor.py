@@ -22,13 +22,15 @@ SPEAK_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 
 
 def find_latest_session() -> str | None:
-    """Find the most recently modified session JSONL file."""
+    """Find the most recently modified session JSONL file (excluding events)."""
     if not os.path.isdir(SESSION_DIR):
         return None
     jsonl_files = [
         os.path.join(SESSION_DIR, f)
         for f in os.listdir(SESSION_DIR)
-        if f.endswith(".jsonl") and not f.endswith(".bak")
+        if f.endswith(".jsonl")
+        and not f.endswith(".bak")
+        and "events" not in f.lower()  # exclude events files (not dialogue)
     ]
     if not jsonl_files:
         return None

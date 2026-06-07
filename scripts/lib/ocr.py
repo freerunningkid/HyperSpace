@@ -8,10 +8,11 @@
   deepseek-ocr         — DeepSeek-OCR（硅基流动，纯文字提取）
   ms-vl-235b           — Qwen3-VL-235B（ModelScope，高精度，每日2000次免费）
   ms-vl-30b            — Qwen3-VL-30B（ModelScope，快速版，每日2000次免费）
+  local_qwen           — qwen3.5:4b（本地 Ollama，竞速模式兜底）
 
 用法:
   python ocr.py <图片路径> [提示词]              # 竞速模式（推荐）
-  python ocr.py <图片路径> [提示词] --model gpt-4o|qwen3-vl|paddle|deepseek-ocr|ms-vl-235b|ms-vl-30b
+  python ocr.py <图片路径> [提示词] --model gpt-4o|qwen3-vl|paddle|deepseek-ocr|ms-vl-235b|ms-vl-30b|local_qwen
   python ocr.py <图片路径> --all                 # 所有模型并行分析
   python ocr.py <图片路径> --model ms-vl-30b --summary  # OCR + Qwen3.5-397B 免费分析
 
@@ -27,6 +28,7 @@ import base64
 import json
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 import concurrent.futures
@@ -59,6 +61,7 @@ PADDLE_JOB_URL = "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
 PADDLE_TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paddle_token.json")
 PADDLE_CUSTOM_TOKEN = _load_token(PADDLE_TOKEN_FILE)
 PADDLE_MODEL = "PaddleOCR-VL-1.6"
+PADDLE_OUTPUT_DIR = r"D:\Reasonix\截图\paddle_output"
 
 # ── 阿里云百炼（DashScope）─
 DASHSCOPE_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
@@ -221,86 +224,208 @@ def _call_siliconflow(image_path, prompt, model):
     return _call_vision_api(image_path, prompt, model, SF_API_URL, SF_API_KEY)
 
 
-def _call_paddle_custom(image_path, prompt=None):
-    """调用 PaddleOCR-VL-1.6 官网 v2 job API（异步提交+轮询+下载结果）"""
-    if not os.path.exists(image_path):
+def _call_paddle_custom(image_path, prompt=None, save_images=False):
+    """调用 PaddleOCR-VL-1.6 官网 v2 job API（异步提交+轮询+下载结果）
+
+    使用 requests 库替代原始 urllib 手动拼接 multipart，支持 URL 模式。
+    save_images=True 时下载版面图片到 PADDLE_OUTPUT_DIR。
+    """
+    try:
+        import requests
+    except ImportError:
+        return "[错误] 缺少 requests 库，请运行: pip install requests"
+
+    if not os.path.exists(image_path) and not image_path.startswith("http"):
         return f"[错误] 文件不存在: {image_path}"
+
+    headers = {
+        "Authorization": f"bearer {PADDLE_CUSTOM_TOKEN}",
+    }
+
+    optional_payload = {
+        "useDocOrientationClassify": False,
+        "useDocUnwarping": False,
+        "useChartRecognition": False,
+    }
 
     try:
         # Step 1: 提交 job
-        boundary = "----FormBoundary" + str(int(time.time()))
-        with open(image_path, "rb") as f:
-            file_bytes = f.read()
-
-        body = (
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="model"\r\n\r\n{PADDLE_MODEL}\r\n'
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="optionalPayload"\r\n\r\n'
-            f'{{"useDocOrientationClassify":false,"useDocUnwarping":false,"useChartRecognition":false}}\r\n'
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="file"; filename="ocr_image"\r\n'
-            f"Content-Type: application/octet-stream\r\n\r\n"
-        ).encode("utf-8")
-        footer = f"\r\n--{boundary}--\r\n".encode("utf-8")
-        body = body + file_bytes + footer
-
-        req = urllib.request.Request(
-            PADDLE_JOB_URL,
-            data=body,
-            headers={
-                "Authorization": f"bearer {PADDLE_CUSTOM_TOKEN}",
-                "Content-Type": f"multipart/form-data; boundary={boundary}"
+        if image_path.startswith("http"):
+            # URL Mode
+            headers["Content-Type"] = "application/json"
+            payload = {
+                "fileUrl": image_path,
+                "model": PADDLE_MODEL,
+                "optionalPayload": optional_payload
             }
-        )
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
+            job_response = requests.post(PADDLE_JOB_URL, json=payload, headers=headers, timeout=60)
+        else:
+            # Local File Mode
+            if not os.path.exists(image_path):
+                return f"[错误] 文件不存在: {image_path}"
+
+            data = {
+                "model": PADDLE_MODEL,
+                "optionalPayload": json.dumps(optional_payload, ensure_ascii=False)
+            }
+
+            with open(image_path, "rb") as f:
+                files = {"file": f}
+                job_response = requests.post(PADDLE_JOB_URL, headers=headers, data=data, files=files, timeout=120)
+
+        if job_response.status_code != 200:
+            return f"[错误] HTTP {job_response.status_code}: {job_response.text[:300]}"
+
+        result = job_response.json()
         if result.get("code") != 0:
             return f"[错误] 提交失败: {result.get('msg', str(result)[:300])}"
+
         job_id = result["data"]["jobId"]
 
         # Step 2: 轮询等待完成（最多 120 秒）
         deadline = time.time() + 120
+        jsonl_url = ""
+
         while time.time() < deadline:
-            time.sleep(3)
-            req2 = urllib.request.Request(
-                f"{PADDLE_JOB_URL}/{job_id}",
-                headers={"Authorization": f"bearer {PADDLE_CUSTOM_TOKEN}"}
-            )
-            with urllib.request.urlopen(req2, timeout=30) as resp2:
-                job = json.loads(resp2.read().decode("utf-8"))
+            time.sleep(5)
+            job_result_response = requests.get(f"{PADDLE_JOB_URL}/{job_id}", headers=headers, timeout=30)
+            if job_result_response.status_code != 200:
+                continue
+
+            job = job_result_response.json()
             state = job["data"]["state"]
-            if state == "done":
+
+            if state == "pending":
+                print("   ⏳ job pending...", flush=True)
+            elif state == "running":
+                try:
+                    progress = job["data"]["extractProgress"]
+                    total = progress["totalPages"]
+                    extracted = progress["extractedPages"]
+                    print(f"   📄 处理中: {extracted}/{total} 页", flush=True)
+                except KeyError:
+                    print("   ⏳ 处理中...", flush=True)
+            elif state == "done":
+                try:
+                    progress = job["data"]["extractProgress"]
+                    print(f"   ✅ 完成: 提取 {progress['extractedPages']} 页", flush=True)
+                except KeyError:
+                    print("   ✅ 完成", flush=True)
                 jsonl_url = job["data"]["resultUrl"]["jsonUrl"]
                 break
             elif state == "failed":
-                return f"[错误] PaddleOCR job 失败: {job['data'].get('errorMsg', '未知')}"
-        else:
+                error_msg = job["data"].get("errorMsg", "未知")
+                return f"[错误] PaddleOCR job 失败: {error_msg}"
+
+        if not jsonl_url:
             return "[错误] PaddleOCR job 超时（120s）"
 
         # Step 3: 下载并解析 JSONL 结果
-        req3 = urllib.request.Request(jsonl_url)
-        with urllib.request.urlopen(req3, timeout=30) as resp3:
-            lines = resp3.read().decode("utf-8").strip().split("\n")
+        jsonl_response = requests.get(jsonl_url, timeout=30)
+        jsonl_response.raise_for_status()
+        lines = jsonl_response.text.strip().split("\n")
+
+        output_dir = None
+        if save_images:
+            output_dir = PADDLE_OUTPUT_DIR
+            os.makedirs(output_dir, exist_ok=True)
+
         texts = []
+        page_num = 0
         for line in lines:
-            if not line.strip():
+            line = line.strip()
+            if not line:
                 continue
             obj = json.loads(line)
             for res in obj.get("result", {}).get("layoutParsingResults", []):
                 texts.append(res["markdown"]["text"])
+
+                if save_images and output_dir:
+                    # 保存 Markdown 文件
+                    md_filename = os.path.join(output_dir, f"doc_{page_num}.md")
+                    with open(md_filename, "w", encoding="utf-8") as md_file:
+                        md_file.write(res["markdown"]["text"])
+                    print(f"   📝 Markdown 已保存: {md_filename}", flush=True)
+
+                    # 下载 markdown 中嵌入的图片
+                    for img_path, img_url in res["markdown"].get("images", {}).items():
+                        full_img_path = os.path.join(output_dir, img_path)
+                        os.makedirs(os.path.dirname(full_img_path), exist_ok=True)
+                        try:
+                            img_bytes = requests.get(img_url).content
+                            with open(full_img_path, "wb") as img_file:
+                                img_file.write(img_bytes)
+                            print(f"   🖼️ 图片已保存: {full_img_path}", flush=True)
+                        except Exception as e:
+                            print(f"   ⚠️ 图片下载失败: {e}", flush=True)
+
+                    # 下载 outputImages
+                    for img_name, img_url in res.get("outputImages", {}).items():
+                        try:
+                            img_response = requests.get(img_url)
+                            if img_response.status_code == 200:
+                                filename = os.path.join(output_dir, f"{img_name}_{page_num}.jpg")
+                                with open(filename, "wb") as f:
+                                    f.write(img_response.content)
+                                print(f"   🖼️ 输出图片已保存: {filename}", flush=True)
+                        except Exception as e:
+                            print(f"   ⚠️ 输出图片下载失败: {e}", flush=True)
+                page_num += 1
+
         return "\n\n".join(texts) if texts else "[错误] 未解析到文字"
 
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8") if e.fp else str(e)
-        return f"[错误] HTTP {e.code}: {body[:300]}"
-    except urllib.error.URLError as e:
-        return f"[错误] 网络连接失败: {e.reason}"
+    except requests.exceptions.Timeout:
+        return "[错误] PaddleOCR 请求超时"
+    except requests.exceptions.ConnectionError:
+        return "[错误] PaddleOCR 网络连接失败"
     except Exception as e:
         return f"[错误] {e}"
 
 
 FAST_TIMEOUT = 3  # deepseek-ocr 超时秒数，超时则触发 gpt-4o 兜底
+
+
+def _call_local_qwen(image_path, prompt, model="qwen3.5:4b", timeout=60):
+    """本地 Ollama qwen3.5:4b 视觉推理"""
+    if not os.path.exists(image_path):
+        return f"[错误] 文件不存在: {image_path}"
+
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    mime = _mime_type(image_path)
+    data_url = f"data:{mime};base64,{img_b64}"
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": 0.3, "num_predict": 4096},
+        "images": [img_b64]
+    }
+
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        "http://127.0.0.1:11434/api/generate",
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"}
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        text = result.get("response", "")
+        if text.strip():
+            return text.strip()
+        return f"[错误] 本地模型返回为空: {json.dumps(result, ensure_ascii=False)[:300]}"
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return f"[错误] 本地模型 HTTP {e.code}: {body[:200]}"
+    except urllib.error.URLError as e:
+        return f"[错误] 无法连接本地 Ollama (http://127.0.0.1:11434): {e.reason}"
+    except Exception as e:
+        return f"[错误] 本地模型异常: {e}"
 
 
 def _looks_valid(text):
@@ -337,7 +462,7 @@ def ocr_fastest(image_path, prompt=None):
     # deepseek 超时/质量差 → 启动 gpt-4o 兜底
     gpt_fut = pool.submit(_call_github_models, image_path, p, "gpt-4o")
 
-    done, _ = concurrent.futures.wait(
+    done, pending = concurrent.futures.wait(
         [gpt_fut, ds_fut],
         return_when=concurrent.futures.FIRST_COMPLETED,
         timeout=120
@@ -352,8 +477,24 @@ def ocr_fastest(image_path, prompt=None):
         except Exception:
             continue
 
+    # deepseek 烂结果但 gpt-4o 还没完——等它
+    if gpt_fut in pending:
+        done2, _ = concurrent.futures.wait([gpt_fut], timeout=120)
+        for fut in done2:
+            try:
+                result = fut.result(timeout=0)
+                if result and not result.startswith("[错误]") and not result.startswith("[跳过]") and _looks_valid(result):
+                    pool.shutdown(wait=False)
+                    return result
+            except Exception:
+                continue
+
     pool.shutdown(wait=False)
-    return "[错误] 级联竞速：所有模型均失败"
+    # 云端全失败 → 最后尝试本地 qwen3.5:4b（纯离线兜底）
+    local_result = _call_local_qwen(image_path, p, timeout=30)
+    if not local_result.startswith("[错误]") and not local_result.startswith("[跳过]") and _looks_valid(local_result):
+        return f"[本地兜底] {local_result}"
+    return "[错误] 级联竞速 + 本地兜底：所有模型均失败"
 
 
 def ocr(image_path, prompt=None, model=None):
@@ -361,7 +502,7 @@ def ocr(image_path, prompt=None, model=None):
         return ocr_fastest(image_path, prompt)
     p = prompt or "请识别这张图片：1）如果包含文字，完整提取所有文字内容；2）如果没有文字，详细描述图片中的场景、物体、人物等内容。"
     if model == "paddle":
-        return _call_paddle_custom(image_path, p)
+        return _call_paddle_custom(image_path, p, save_images=True)
     if model == "qwen3-vl":
         return _call_dashscope(image_path, p, "qwen3-vl-plus")
     if model in ("ms-vl-235b", "ms-vl-30b"):
@@ -369,6 +510,8 @@ def ocr(image_path, prompt=None, model=None):
         return _call_modelscope(image_path, p, info["id"])
     if model in SF_MODELS:
         return _call_siliconflow(image_path, p, SF_MODELS[model])
+    if model == "local_qwen":
+        return _call_local_qwen(image_path, p)
     return _call_github_models(image_path, p, model)
 
 

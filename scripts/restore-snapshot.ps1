@@ -60,7 +60,7 @@ $WtDst = "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\Loc
 if (Test-Path $WtBak) {
     # 先备份当前设置（防止误操作）
     $WtCurBak = "$WtDst.replaced-by-restore"
-    if (Test-Path $WtDst -and -not (Test-Path $WtCurBak)) {
+    if ((Test-Path $WtDst) -and -not (Test-Path $WtCurBak)) {
         Copy-Item $WtDst $WtCurBak -Force
     }
     Copy-Item $WtBak $WtDst -Force
@@ -75,7 +75,7 @@ $RegFiles = @(
 foreach ($reg in $RegFiles) {
     if (Test-Path $reg) {
         try {
-            $null = Start-Process reg -ArgumentList @("import", "`"$reg`"") -Wait -WindowStyle Hidden -NoNewWindow
+            $null = Start-Process reg -ArgumentList @("import", "`"$reg`"") -Wait -WindowStyle Hidden
             if (-not $Quiet) { Write-Host "  📋 右键菜单: 已恢复 ($(Split-Path $reg -Leaf))" -ForegroundColor Green }
         } catch {
             if (-not $Quiet) { Write-Host "  ⚠ 右键菜单恢复失败: $_" -ForegroundColor Yellow }

@@ -1,0 +1,19 @@
+Windows Registry Editor Version 5.00
+
+; ── 文件夹图标上右键（Windows Terminal）──
+[HKEY_CURRENT_USER\Software\Classes\Directory\shell\ClaudeCode]
+@="Open Claude Code here"
+"Icon"="D:\Agent-Codex\node\node_modules\@anthropic-ai\claude-code\bin\claude.exe,0"
+"Position"="top"
+
+[HKEY_CURRENT_USER\Software\Classes\Directory\shell\ClaudeCode\command]
+@="wt.exe -d \"%1\" cmd /k claude"
+
+; ── 文件夹空白处右键（Windows Terminal）──
+[HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\ClaudeCode]
+@="Open Claude Code here"
+"Icon"="D:\Agent-Codex\node\node_modules\@anthropic-ai\claude-code\bin\claude.exe,0"
+"Position"="top"
+
+[HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\ClaudeCode\command]
+@="wt.exe -d \"%V\" cmd /k claude"

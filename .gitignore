@@ -10,6 +10,7 @@ data/
 # Python
 __pycache__/
 *.pyc
+scripts/.venv/
 
 # Claude 运行垃圾（不同步）
 backups/
@@ -25,14 +26,21 @@ tasks/
 telemetry/
 channels/
 
-# Reasonix 内部临时文件
-.reasonix/
+# Reasonix 内部临时文件（除 skills 外）
+.reasonix/*
+!.reasonix/skills/
 .screenshot_monitor.lock
 截图/
+
+# 会话日志（每台机器独立，不同步）
+config/reasonix/sessions/
 
 # 系统垃圾
 Thumbs.db
 Desktop.ini
+
+# Node 依赖
+node_modules/
 
 # Token 文件（含 API Key，严禁提交）
 *token*.json
