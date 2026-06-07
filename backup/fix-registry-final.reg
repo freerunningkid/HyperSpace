@@ -1,0 +1,10 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\Reasonix\command]
+@="wt.exe pwsh -NoExit -File \"D:\\Reasonix\\scripts\\reasonix-guard.ps1\" -TargetDir \"%V\""
+
+[HKEY_CURRENT_USER\Software\Classes\Directory\shell\Reasonix\command]
+@="wt.exe pwsh -NoExit -File \"D:\\Reasonix\\scripts\\reasonix-guard.ps1\" -TargetDir \"%1\""
+
+[HKEY_CURRENT_USER\Software\Classes\Drive\shell\Reasonix\command]
+@="wt.exe pwsh -NoExit -File \"D:\\Reasonix\\scripts\\reasonix-guard.ps1\" -TargetDir \"%1\""
