@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "os-control": {
+      "command": "python",
+      "args": ["D:\\Reasonix\\scripts\\mcp\\os_control_server.py"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

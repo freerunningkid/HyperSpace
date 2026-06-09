@@ -1,18 +1,20 @@
 ---
 name: evolve
-description: 进化闭环 v2.2：三问门禁 + 模式检测(减配) + 轻量审计 + last_used 跟踪 → 写入嵌套 memory/ 目录
+description: 进化闭环 v3.0：铁律化 + 必选默契简报 + 假设验证 + 自动调 learn-from-experience → 写入嵌套 memory/
 last_used: 2026-06-04
 ---
-# evolve v2.2 — 演化闭环
+# evolve v3.0 — 演化闭环
 
-> 版本: v2.2 · 2026-06-04
-> 升级: +三问门禁 +模式检测(减配) +轻量审计 +last_used跟踪 +路径修复
+> 🚨 **会话末铁律（不可跳过）**：每次会话最后一步 = 运行 evolve。遗忘 = 进化停滞 = 事故。优先级仅低于 TTS。
+>
+> 版本: v3.0 · 2026-06-09
+> 升级: +铁律化 +必选默契简报 +假设验证(tentative交叉验证) +自动调learn-from-experience
 > 运行位置: inline（主 Agent 上下文内执行）
 
 ## 运行模式
 
 - **mode**: inline
-- **trigger**: 会话结束 / 用户主动要求 / 项目阶段完成
+- **trigger**: 🚨 会话结束（铁律，不可跳过） / 用户主动要求 / 项目阶段完成
 - **约束**: 必须在主会话上下文中运行
 
 ## 设计原则
@@ -37,9 +39,13 @@ last_used: 2026-06-04
 
 ---
 
-## Step 1.5：思维洞察（默契显性化）
+## Step 1.5：思维洞察 + 默契简报（必选）
 
-从当前会话中尝试提炼 **1 条关于小金东思维方式的洞察**（可选，不强求）：
+**必须完成**。即使没有新的 tentative 条目写入，也必须更新 `memory/meta/health.md` 中的默契简报。
+
+### 1.5a 提炼思维洞察
+
+从当前会话中提炼 **至少 1 条**关于小金东思维方式的洞察：
 
 | 类型 | 检测信号 | 写入目标 |
 |------|---------|---------|
@@ -49,10 +55,47 @@ last_used: 2026-06-04
 | 沟通节奏 | 他主动展开 vs 等指令 | 同上 |
 
 **约束**：
-- 没有足够证据则跳过此步（不强求每会话都有洞察）
-- confidence ≥ 0.7 才写入（需至少 3 次观察或 1 次显式表述）
-- 写入时标记 `status: tentative`，待后续会话交叉验证
+- 有足够证据 → confidence ≥ 0.7，写入 thinking-style.md，标记 `status: tentative`
+- 证据不足 → 不强行写入 thinking-style.md，但**默契简报必须填写**（见下）
 - 与现有条目冲突时追加为"待验证对立假设"而非覆盖
+
+### 1.5b 填写默契简报（必填）
+
+无论是否有新洞察写入，**必须更新** `memory/meta/health.md` 中的「默契简报」段（在 Step 4 执行时写入）。
+
+填写规则：
+- 默契度方向：基于本次会话中的纠正次数、预判命中/未中比例判断（↑/→/↓）
+- 亮点：本次会话中小金东说"对""就是这样"或明显满意的点
+- 盲区：本次会话中猜错、被纠正、需要多次确认的方向
+- 假设验证摘要：引用 Step 1.6 的结果
+
+---
+
+## Step 1.6：假设验证（tentative 条目交叉验证）
+
+**必须完成**。检查所有 `status: tentative` 的记忆条目，用本次会话的观察交叉验证。
+
+### 检查范围
+
+- `memory/profiles/thinking-style.md` — 所有 `status: tentative` 条目
+- `memory/knowledge/domain.md` — 所有 `status: tentative` 条目
+- `memory/lessons/errors.md` — 所有 `status: tentative` 条目
+- 其他 `memory/` 子目录中的 tentative 条目
+
+### 验证动作
+
+| 本次会话观察 | 动作 |
+|-------------|------|
+| 新证据**支持**该假设 | `observed_count += 1`；若 confidence 因此 ≥0.9 则 `status → confirmed` |
+| 新证据**反驳**该假设 | 记录在条目 changelog；confidence -= 0.2；若 confidence <0.5 则 `status → disputed` |
+| 无相关观察 | 记录 `last_checked: <日期>`, 无变更 |
+
+### 输出
+
+在 EVOLVE REPORT 中报告：
+- 检查了 N 条 tentative 条目
+- M 条获得新证据（含支持/反驳）
+- 是否有条目从 tentative → confirmed
 
 ---
 
@@ -155,7 +198,7 @@ TTS 语音: tts, 语音, speak, 朗读
 
 - <3 仅计数
 - ≥3 → `patterns/active.md`
-- ≥5 → `memory/skills/proposals/` + 通知用户
+- ≥5 → 自动调用 `run_skill("learn-from-experience", "模式: <描述> · 证据数: <N> · 实例: <列举>")` → 由子代理判断是否创建 Skill
 - ≥10 → 建议创建 Official Skill（写入 `.reasonix/skills/`）
 
 ### 误报
@@ -169,7 +212,7 @@ TTS 语音: tts, 语音, speak, 朗读
 
 ```
 ═══════════════════════════════════════
- EVOLVE REPORT — v2.1
+ EVOLVE REPORT — v3.0
 ═══════════════════════════════════════
 
 📦 新知识
@@ -181,8 +224,19 @@ TTS 语音: tts, 语音, speak, 朗读
 📋 决策
   • D-YYYYMMDD-NNN: [摘要] → decisions/decisions.md
 
+🧠 默契简报
+  本周默契度：[↑/→/↓]
+  亮点：[...]
+  盲区：[...]
+
+🔬 假设验证
+  检查 tentative 条目: N 条
+  获新证据: M 条（支持 X / 反驳 Y）
+  状态升级: [从 tentative → confirmed 的条目]
+
 🔍 模式检测
-  ⚠ P-YYYYMMDD-NNN: "[描述]" — 5/5 达到阈值
+  ⚠ P-YYYYMMDD-NNN: "[描述]" — N/N 达到阈值
+  🤖 自动触发 learn-from-experience: [是/否]
 
 📊 健康审计
   MEMORY.md: N 行 ✅
@@ -212,6 +266,6 @@ TTS 语音: tts, 语音, speak, 朗读
 |------|------|------|
 | v1 | 2026-05 | 初始版本 |
 | v2 | 2026-06-02 | +纠错 +决策 |
-| **v2.1** | **2026-06-02** | **+三问门禁 +模式检测 +轻量审计 +frontmatter** |
-| **v2.2** | **2026-06-04** | **+last_used跟踪 +路径修复(skills/active/→.reasonix/skills/) +审计指标可计量化** |
-| **v2.2** | **2026-06-04** | **+last_used跟踪 +路径修复(skills/active/→.reasonix/skills/) +审计指标可计量化** |
+| v2.1 | 2026-06-02 | +三问门禁 +模式检测 +轻量审计 +frontmatter |
+| v2.2 | 2026-06-04 | +last_used跟踪 +路径修复 +审计指标可计量化 |
+| **v3.0** | **2026-06-09** | **+铁律化 +必选默契简报 +假设验证 +自动调learn-from-experience** |

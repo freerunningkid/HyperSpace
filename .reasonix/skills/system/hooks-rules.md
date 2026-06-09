@@ -1,6 +1,6 @@
 ---
 name: hooks-rules
-description: 钩子与路径规则管理：文件编辑前后自动运行命令、路径范围规则（仅特定文件/目录生效）、预批准常用命令
+description: 钩子 + 路径规则 + 权限矩阵管理：文件编辑钩子、路径范围规则、三层权限模型(全局→项目→操作)、预批准命令
 last_used: 2026-06-04
 ---
 # hooks-rules — 钩子 + 路径规则
@@ -159,3 +159,102 @@ pre_approved_commands:
 - 路径规则只做上下文注入，不修改文件
 - 预批准命令限于**无害的只读命令**
 - 钩子失败不阻塞主任务（警告即可）
+
+---
+
+## 权限矩阵 (v0.1 — Agent Protocol § 权限分层)
+
+> 三层权限模型：全局 → 项目 → 操作。上层定义边界，下层可收紧不可放宽。
+
+### 权限配置文件
+
+项目根目录 `.reasonix/permissions.yaml`:
+
+```yaml
+# ── 全局权限（跨会话生效）──
+global:
+  # 只读区域：Agent 可以读但不能写
+  readonly_paths:
+    - "C:\\Windows\\**"
+    - "C:\\Program Files\\**"
+    - "D:\\Reasonix\\archive-归档\\**"
+    - "D:\\Reasonix\\memory\\**"        # 记忆文件走 remember/forget，不直接写
+
+  # 高危操作：需要用户显式确认
+  require_approval:
+    - "rm -rf"
+    - "del /f"
+    - "format"
+    - "shutdown"
+    - "reg add"
+    - "reg delete"
+
+# ── 项目权限 ──
+project:
+  # 写入白名单：Agent 可以自由写入的目录
+  writable_paths:
+    - "D:\\Reasonix\\scripts\\**"
+    - "D:\\Reasonix\\learning-学习\\**"
+    - "D:\\Reasonix\\reference-参考\\**"
+    - "D:\\Reasonix\\.reasonix\\**"
+    - "D:\\Reasonix\\tools-工具\\**"
+    - "D:\\临时\\**"
+
+  # 写入黑名单：即使在白名单内也禁止写入的具体文件/目录
+  deny_write:
+    - "D:\\Reasonix\\CLAUDE.md"         # 缓存链保护
+    - "D:\\Reasonix\\MEMORY.md"         # 索引文件走专用通道
+    - "D:\\Reasonix\\.mcp.json"         # MCP 配置走 install_source
+
+  # 自动批准的工具（不弹确认）
+  auto_approve_tools:
+    - "read_file"
+    - "grep"
+    - "glob"
+    - "ls"
+    - "list_windows"
+    - "get_screenshot"
+    - "get_active_window"
+    - "clipboard_read"
+    - "find_file"
+    - "lsp_diagnostics"
+    - "lsp_definition"
+    - "lsp_references"
+    - "lsp_hover"
+    - "bash"                             # 仅限预批准命令列表内的命令
+
+# ── 操作权限 ──
+operations:
+  # 文件破坏性操作 → 需要确认
+  dangerous_writes:
+    - "delete_range"
+    - "delete_symbol"
+    - "write_file"                       # 覆盖写入需要确认
+  
+  # 安全写入 → 自动批准
+  safe_writes:
+    - "edit_file"                        # old_string 精确匹配 → 安全
+    - "multi_edit"                       # 原子化批量 → 安全
+```
+
+### 权限检查流程
+
+```
+Agent 想要执行操作 X 在路径 P
+  │
+  ├─ P 在 readonly_paths? → ❌ 拒绝
+  ├─ X 在 require_approval? → ⚠️ 弹确认
+  ├─ X 是写操作，P 不在 writable_paths? → ⚠️ 弹确认
+  ├─ X 在 auto_approve_tools? → ✅ 直接执行
+  ├─ X 在 dangerous_writes? → ⚠️ 弹确认
+  └─ 以上都不匹配 → ⚠️ 按默认策略（弹确认）
+```
+
+### 与 Agent Protocol 对齐
+
+| Agent Protocol § | hooks-rules 实现 |
+|-----------------|-----------------|
+| 权限声明 (capabilities.permissions) | `.reasonix/permissions.yaml` 存在即声明 true |
+| 路径级权限 | readonly_paths + writable_paths + deny_write |
+| 操作级权限 | require_approval + auto_approve_tools + dangerous_writes |
+| 继承模型 | global(最宽) → project(收紧) → operations(最细) |

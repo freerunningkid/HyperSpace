@@ -6,13 +6,13 @@
   qwen3-vl             — Qwen3-VL-Plus（阿里云百炼，5000万免费tokens）
   paddle               — PaddleOCR-VL-1.6（官网 v2 API，版面解析）
   deepseek-ocr         — DeepSeek-OCR（硅基流动，纯文字提取）
+  agnes                — Agnes-2.0-Flash（免费云端，视觉+理解，全能型）
   ms-vl-235b           — Qwen3-VL-235B（ModelScope，高精度，每日2000次免费）
   ms-vl-30b            — Qwen3-VL-30B（ModelScope，快速版，每日2000次免费）
-  local_qwen           — qwen3.5:4b（本地 Ollama，竞速模式兜底）
 
 用法:
   python ocr.py <图片路径> [提示词]              # 竞速模式（推荐）
-  python ocr.py <图片路径> [提示词] --model gpt-4o|qwen3-vl|paddle|deepseek-ocr|ms-vl-235b|ms-vl-30b|local_qwen
+  python ocr.py <图片路径> [提示词] --model gpt-4o|qwen3-vl|paddle|deepseek-ocr|agnes|ms-vl-235b|ms-vl-30b
   python ocr.py <图片路径> --all                 # 所有模型并行分析
   python ocr.py <图片路径> --model ms-vl-30b --summary  # OCR + Qwen3.5-397B 免费分析
 
@@ -70,6 +70,69 @@ DASHSCOPE_TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
 # ── ModelScope（魔搭社区，每日 2000 次免费）─
 MS_API_URL = "https://api-inference.modelscope.cn/v1/chat/completions"
 MS_TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "modelscope_token.json")
+
+# ── Agnes AI（免费云端，支持视觉 + 图像生成）─
+AGNES_API_URL = "https://apihub.agnes-ai.com/v1/chat/completions"
+AGNES_TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agnes_token.json")
+AGNES_MODEL = "agnes-2.0-flash"  # 或 agnes-1.5-flash
+
+def _get_agnes_token():
+    if not os.path.exists(AGNES_TOKEN_FILE):
+        return None
+    with open(AGNES_TOKEN_FILE, "r") as f:
+        data = json.load(f)
+    return data.get("token", "").strip()
+
+
+def _call_agnes(image_path, prompt, model=None, timeout=60):
+    """调用 Agnes AI 视觉模型（免费，支持图像理解）"""
+    api_key = _get_agnes_token()
+    if not api_key:
+        return "[跳过] Agnes token 未配置"
+    if not os.path.exists(image_path):
+        return f"[错误] 文件不存在: {image_path}"
+
+    model = model or AGNES_MODEL
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+    mime = _mime_type(image_path)
+    data_url = f"data:{mime};base64,{img_b64}"
+
+    payload = {
+        "model": model,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": data_url}},
+            ],
+        }],
+        "max_tokens": 2048,
+        "temperature": 0.5,
+    }
+    body = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        AGNES_API_URL, data=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if "choices" in data and data["choices"]:
+            return data["choices"][0]["message"]["content"]
+        return "[错误] Agnes 返回空响应"
+    except urllib.error.HTTPError as e:
+        err = e.read().decode("utf-8", errors="replace")[:200]
+        return f"[错误] Agnes HTTP {e.code}: {err}"
+    except urllib.error.URLError as e:
+        return f"[错误] Agnes 连接失败: {e.reason}"
+    except Exception as e:
+        return f"[错误] {e}"
+
 
 DEFAULT_MODEL = None  # None = 竞速模式（gpt-4o + deepseek-ocr 并行）
 MAX_IMG_SIZE_MB = 20
@@ -385,47 +448,9 @@ def _call_paddle_custom(image_path, prompt=None, save_images=False):
 FAST_TIMEOUT = 3  # deepseek-ocr 超时秒数，超时则触发 gpt-4o 兜底
 
 
-def _call_local_qwen(image_path, prompt, model="qwen3.5:4b", timeout=60):
-    """本地 Ollama qwen3.5:4b 视觉推理"""
-    if not os.path.exists(image_path):
-        return f"[错误] 文件不存在: {image_path}"
-
-    with open(image_path, "rb") as f:
-        img_b64 = base64.b64encode(f.read()).decode("utf-8")
-
-    mime = _mime_type(image_path)
-    data_url = f"data:{mime};base64,{img_b64}"
-
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": 0.3, "num_predict": 4096},
-        "images": [img_b64]
-    }
-
-    body = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        "http://127.0.0.1:11434/api/generate",
-        data=body,
-        method="POST",
-        headers={"Content-Type": "application/json"}
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-        text = result.get("response", "")
-        if text.strip():
-            return text.strip()
-        return f"[错误] 本地模型返回为空: {json.dumps(result, ensure_ascii=False)[:300]}"
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        return f"[错误] 本地模型 HTTP {e.code}: {body[:200]}"
-    except urllib.error.URLError as e:
-        return f"[错误] 无法连接本地 Ollama (http://127.0.0.1:11434): {e.reason}"
-    except Exception as e:
-        return f"[错误] 本地模型异常: {e}"
+def _call_local_qwen(image_path, prompt, model="agnes-2.0-flash", timeout=60):
+    """[已废弃] 原本地 Ollama。重定向到 Agnes AI 云端"""
+    return _call_agnes(image_path, prompt, model=model, timeout=timeout)
 
 
 def _looks_valid(text):
@@ -489,12 +514,7 @@ def ocr_fastest(image_path, prompt=None):
             except Exception:
                 continue
 
-    pool.shutdown(wait=False)
-    # 云端全失败 → 最后尝试本地 qwen3.5:4b（纯离线兜底）
-    local_result = _call_local_qwen(image_path, p, timeout=30)
-    if not local_result.startswith("[错误]") and not local_result.startswith("[跳过]") and _looks_valid(local_result):
-        return f"[本地兜底] {local_result}"
-    return "[错误] 级联竞速 + 本地兜底：所有模型均失败"
+
 
 
 def ocr(image_path, prompt=None, model=None):
@@ -510,9 +530,7 @@ def ocr(image_path, prompt=None, model=None):
         return _call_modelscope(image_path, p, info["id"])
     if model in SF_MODELS:
         return _call_siliconflow(image_path, p, SF_MODELS[model])
-    if model == "local_qwen":
-        return _call_local_qwen(image_path, p)
-    return _call_github_models(image_path, p, model)
+
 
 
 # ── 并行模型分析 ──
@@ -523,8 +541,7 @@ MODEL_REGISTRY = {
     "paddle":       {"provider": "paddle-custom",   "id": "PaddleOCR-VL-1.6"},
     "gpt-4o":       {"provider": "github",         "id": "openai/gpt-4o"},
     "ms-vl-235b":   {"provider": "modelscope",     "id": "Qwen/Qwen3-VL-235B-A22B-Instruct"},
-    "ms-vl-30b":    {"provider": "modelscope",     "id": "Qwen/Qwen3-VL-30B-A3B-Instruct"},
-}
+
 
 
 def _run_single_model(image_path, prompt, model_name):
@@ -537,9 +554,7 @@ def _run_single_model(image_path, prompt, model_name):
             result = _call_paddle_custom(image_path, prompt)
         elif info["provider"] == "dashscope":
             result = _call_dashscope(image_path, prompt, info["id"])
-        elif info["provider"] == "modelscope":
-            result = _call_modelscope(image_path, prompt, info["id"])
-        else:
+
             result = _call_vision_api(image_path, prompt, info["id"], SF_API_URL, SF_API_KEY)
         return model_name, result
     except Exception as e:
