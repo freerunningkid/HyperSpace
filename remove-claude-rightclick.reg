@@ -1,5 +1,0 @@
-Windows Registry Editor Version 5.00
-
-; 移除 Claude Code 右键菜单（HKCU）
-[-HKEY_CURRENT_USER\Software\Classes\Directory\shell\ClaudeCode]
-[-HKEY_CURRENT_USER\Software\Classes\Directory\Background\shell\ClaudeCode]

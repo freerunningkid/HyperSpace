@@ -61,7 +61,7 @@ PADDLE_JOB_URL = "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
 PADDLE_TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paddle_token.json")
 PADDLE_CUSTOM_TOKEN = _load_token(PADDLE_TOKEN_FILE)
 PADDLE_MODEL = "PaddleOCR-VL-1.6"
-PADDLE_OUTPUT_DIR = r"D:\Reasonix\截图\paddle_output"
+PADDLE_OUTPUT_DIR = r"D:\Reasonix\screenshots-截图\paddle_output"
 
 # ── 阿里云百炼（DashScope）─
 DASHSCOPE_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
@@ -453,6 +453,8 @@ def _call_local_qwen(image_path, prompt, model="agnes-2.0-flash", timeout=60):
     return _call_agnes(image_path, prompt, model=model, timeout=timeout)
 
 
+
+
 def _looks_valid(text):
     """快速判断 OCR 结果是否像有效内容（非乱码）"""
     if len(text) < 10:
@@ -514,7 +516,8 @@ def ocr_fastest(image_path, prompt=None):
             except Exception:
                 continue
 
-
+    pool.shutdown(wait=False)
+    return "[错误] 竞速模式：所有云端模型均失败"
 
 
 def ocr(image_path, prompt=None, model=None):
@@ -530,7 +533,7 @@ def ocr(image_path, prompt=None, model=None):
         return _call_modelscope(image_path, p, info["id"])
     if model in SF_MODELS:
         return _call_siliconflow(image_path, p, SF_MODELS[model])
-
+    return _call_github_models(image_path, p, model)
 
 
 # ── 并行模型分析 ──

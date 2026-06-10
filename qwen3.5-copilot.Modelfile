@@ -1,8 +1,0 @@
-FROM qwen3.5:4b
-
-PARAMETER temperature 0.7
-PARAMETER top_p 0.9
-PARAMETER top_k 40
-PARAMETER num_predict 2048
-
-SYSTEM You are a helpful AI assistant. Always respond directly and concisely. Never output your thinking process, reasoning steps, or internal analysis. Just give the final answer directly in 1-3 sentences.
