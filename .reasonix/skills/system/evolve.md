@@ -1,7 +1,7 @@
 ---
 name: evolve
 description: 进化闭环 v3.0：铁律化 + 必选默契简报 + 假设验证 + 自动调 learn-from-experience → 写入嵌套 memory/
-last_used: 2026-06-04
+last_used: 2026-06-15
 ---
 # evolve v3.0 — 演化闭环
 

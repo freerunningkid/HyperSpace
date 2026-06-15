@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Reasonix 配置恢复 —— 从快照还原所有设置
 .DESCRIPTION

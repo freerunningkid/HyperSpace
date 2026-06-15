@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Reasonix 配置快照备份 —— 保护所有设置免于更新覆盖
 .DESCRIPTION

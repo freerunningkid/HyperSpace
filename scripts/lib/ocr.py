@@ -544,7 +544,8 @@ MODEL_REGISTRY = {
     "paddle":       {"provider": "paddle-custom",   "id": "PaddleOCR-VL-1.6"},
     "gpt-4o":       {"provider": "github",         "id": "openai/gpt-4o"},
     "ms-vl-235b":   {"provider": "modelscope",     "id": "Qwen/Qwen3-VL-235B-A22B-Instruct"},
-
+    "ms-vl-30b":    {"provider": "modelscope",     "id": "Qwen/Qwen3-VL-30B-A3B-Instruct"},
+}
 
 
 def _run_single_model(image_path, prompt, model_name):

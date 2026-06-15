@@ -44,6 +44,18 @@
 - 简洁优先：一行能解决不用两行
 - 目标驱动：明确验收标准，不做锦上添花
 
+#### 自检句
+- "Would a senior engineer say this is overcomplicated?"
+- "Does every changed line trace directly to the user's request?"
+
+#### 偏误信号
+- diff 出现无关的格式化/重命名 → 违反手术刀原则
+- 一次提交超过 3 个"顺手改" → 范围失控
+- 澄清问题发生在实现之后 → 先想再做失败
+
+#### 权衡提示
+简单任务（拼写修复、单行改）不适用全套流程，用判断力。
+
 ### 自愈与微学习
 
 - 口头说"停/不对" → 立即中断当前动作，保留上下文重来
