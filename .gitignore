@@ -39,9 +39,29 @@ config/reasonix/sessions/
 Thumbs.db
 Desktop.ini
 
+# 临时文件
+temp_*
+tb_*.png
+nul
+_speak_wrapper.py
+check_pkgs.py
+explore_xlsx.py
+find_python.py
+merge_xlsx.py
+test_import.py
+llama-server.*
+
+# OCR 输出
+ocr_results/
+
+# 桥接文件
+bridge-to-2b.md
+
 # Node 依赖
 node_modules/
 
 # Token 文件（含 API Key，严禁提交）
 *token*.json
 .env
+
+nul
