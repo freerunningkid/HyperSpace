@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     配置完整性检查 —— 检测更新后丢失的配置项
 .DESCRIPTION

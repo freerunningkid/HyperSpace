@@ -33,8 +33,8 @@ except ImportError:
 from ocr import ocr as ocr_analyze
 
 # ── 配置 ──
-SAVE_DIR = Path(r"D:\Reasonix\screenshots-截图")
-LOG_DIR = Path(r"D:\Reasonix\screenshots-截图")
+SAVE_DIR = Path(r"D:\Reasonix\截图")
+LOG_DIR = Path(r"D:\Reasonix\截图")
 MODEL = "gpt-4o"
 POLL_INTERVAL = 1.0          # 剪贴板轮询间隔（秒）
 MAX_CONSEC_ERRORS = 10        # 连续错误上限（超过即退出）

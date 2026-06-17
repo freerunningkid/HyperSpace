@@ -12,7 +12,7 @@ __pycache__/
 *.pyc
 scripts/.venv/
 
-# Claude 运行垃圾（不同步）
+# Claude 运行垃圾
 backups/
 debug/
 downloads/
@@ -26,18 +26,26 @@ tasks/
 telemetry/
 channels/
 
-# Reasonix 内部临时文件（除 skills 外）
-.reasonix/*
-!.reasonix/skills/
-.screenshot_monitor.lock
-截图/
-
-# 会话日志（每台机器独立，不同步）
+# 会话日志（每台机器独立）
 config/reasonix/sessions/
 
-# 系统垃圾
-Thumbs.db
-Desktop.ini
+# 归档和备份
+archive-归档/
+backup/
+
+# Token 文件（含 API Key，严禁提交）
+*token*.json
+.env
+
+# 桥接运行时文件
+bridge/inbox.txt
+bridge/outbox.txt
+bridge/sent_log.txt
+bridge/stop.txt
+bridge/state.json
+
+# OCR 输出
+ocr_results/
 
 # 临时文件
 temp_*
@@ -51,17 +59,14 @@ merge_xlsx.py
 test_import.py
 llama-server.*
 
-# OCR 输出
-ocr_results/
+# 系统垃圾
+Thumbs.db
+Desktop.ini
 
-# 桥接文件
-bridge-to-2b.md
 
-# Node 依赖
-node_modules/
+# 临时截断结果
+.reasonix/truncated-results/
 
-# Token 文件（含 API Key，严禁提交）
-*token*.json
-.env
-
-nul
+# 截图
+截图/
+.screenshot_monitor.lock

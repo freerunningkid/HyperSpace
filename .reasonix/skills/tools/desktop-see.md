@@ -1,37 +1,48 @@
 ---
 name: desktop-see
-description: 截图当前屏幕或窗口 → OCR 识别 → 返回屏幕上的文字内容。Agent 的眼睛。
-last_used: 2026-06-08
+description: PowerShell 原生截屏 + ocr.py 识别。Agent 的桌面眼睛，零 MCP 依赖。
+last_used: 2026-06-09
 ---
 # desktop-see — Agent 的桌面眼睛
 
-> 组合工具：截图 (mcp-os-control) + OCR (ocr.py)
-> 适用场景：不知道当前屏幕上有什么 → 截图 → OCR → 文字化反馈
+> 截图：PowerShell CopyFromScreen（零依赖） | OCR：ocr.py（多引擎可选）
+> 纯 CLI，不经过任何 MCP。
 
 ## 使用方法
 
-```
-run_skill("desktop-see", "region: full | active_window")
-```
-
-或者调用已有 MCP 工具：
-1. `mcp__os-control__get_screenshot` — 截图获取 base64
-2. 将截图传给 `scripts/lib/ocr.py` 做 OCR
-
-## 快速命令
+### 截全屏 → OCR
 
 ```powershell
-# 截全屏 + OCR
-python D:\Reasonix\scripts\mcp\os_control_server.py  # via MCP get_screenshot
+# Step 1: 截屏
+powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; `$b = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width, [System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height); `$g = [System.Drawing.Graphics]::FromImage(`$b); `$g.CopyFromScreen(0,0,0,0,`$b.Size); `$b.Save('D:\Reasonix\截图\desktop.png'); `$g.Dispose(); `$b.Dispose()"
 
-# OCR 直接调用
-python D:\Reasonix\scripts\lib\ocr.py <image_path>
+# Step 2: OCR 识别
+python D:\Reasonix\scripts\lib\ocr.py D:\Reasonix\截图\desktop.png
+```
+
+### 指定 OCR 引擎
+
+```powershell
+# 版式/表格专用
+python D:\Reasonix\scripts\lib\ocr.py D:\Reasonix\截图\desktop.png --model paddle
+
+# 高精度
+python D:\Reasonix\scripts\lib\ocr.py D:\Reasonix\截图\desktop.png --model ms-vl-235b
+
+# 快速
+python D:\Reasonix\scripts\lib\ocr.py D:\Reasonix\截图\desktop.png --model ms-vl-30b
 ```
 
 ## 典型场景
 
 | 场景 | 步骤 |
 |------|------|
-| 不知道当前打开了什么窗口 | `list_windows` → 确认 → `get_screenshot active_window` → OCR |
-| 需要看屏幕上的错误信息 | `get_screenshot full` → OCR → 识别错误文字 |
-| 操作完成后确认结果 | `get_screenshot active_window` → OCR → 对比期望 |
+| 不知道当前屏幕上有什么 | 截屏 → ocr.py 识别 → 读结果 |
+| 操作后确认结果 | 截屏 → ocr.py → 对比期望 |
+| 抓取无法选中的文字 | 截屏 → ocr.py |
+
+## 注意事项
+
+- PowerShell 截屏是 Windows GDI 原生 API，零第三方依赖
+- 不弹窗、不抢焦点、不干扰热键
+- OCR 引擎选型：默认竞速模式(gpt-4o+deepseek) / paddle(表格) / ms-vl(高精度)

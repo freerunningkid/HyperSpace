@@ -61,7 +61,7 @@ PADDLE_JOB_URL = "https://paddleocr.aistudio-app.com/api/v2/ocr/jobs"
 PADDLE_TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "paddle_token.json")
 PADDLE_CUSTOM_TOKEN = _load_token(PADDLE_TOKEN_FILE)
 PADDLE_MODEL = "PaddleOCR-VL-1.6"
-PADDLE_OUTPUT_DIR = r"D:\Reasonix\screenshots-截图\paddle_output"
+PADDLE_OUTPUT_DIR = r"D:\Reasonix\截图\paddle_output"
 
 # ── 阿里云百炼（DashScope）─
 DASHSCOPE_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
@@ -453,8 +453,6 @@ def _call_local_qwen(image_path, prompt, model="agnes-2.0-flash", timeout=60):
     return _call_agnes(image_path, prompt, model=model, timeout=timeout)
 
 
-
-
 def _looks_valid(text):
     """快速判断 OCR 结果是否像有效内容（非乱码）"""
     if len(text) < 10:
@@ -471,53 +469,92 @@ def _looks_valid(text):
 
 
 def ocr_fastest(image_path, prompt=None):
-    """级联竞速：先跑 deepseek-ocr（快），3s 超时/质量差则触发 gpt-4o 兜底"""
+    """三路竞速：PaddleOCR（文字优先）+ deepseek-ocr（快）+ gpt-4o（兜底）
+
+    对文字类图片优先采用 PaddleOCR-VL-1.6（版面解析强，但异步较慢 10~30s），
+    PaddleOCR 超时／失败则退回 deepseek-ocr → gpt-4o fast path。
+    """
+    PADDLE_TIMEOUT = 30  # PaddleOCR 最大等待秒数
+
     p = prompt or "请识别这张图片：1）如果包含文字，完整提取所有文字内容；2）如果没有文字，详细描述图片中的场景、物体、人物等内容。"
 
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=3)
     ds_fut = pool.submit(_call_siliconflow, image_path, p, "deepseek-ai/DeepSeek-OCR")
-
-    # 等 deepseek-ocr 最多 FAST_TIMEOUT 秒
-    done, _ = concurrent.futures.wait([ds_fut], timeout=FAST_TIMEOUT)
-
-    if done:
-        result = ds_fut.result()
-        if result and not result.startswith("[错误]") and not result.startswith("[跳过]") and _looks_valid(result):
-            pool.shutdown(wait=False)
-            return result
-
-    # deepseek 超时/质量差 → 启动 gpt-4o 兜底
+    pd_fut = pool.submit(_call_paddle_custom, image_path, p, save_images=False)
     gpt_fut = pool.submit(_call_github_models, image_path, p, "gpt-4o")
 
+    # ── 阶段一：先看 deepseek-ocr（快，3s 判断是否文字类） ──
+    done_ds, _ = concurrent.futures.wait([ds_fut], timeout=FAST_TIMEOUT)
+
+    if done_ds:
+        ds_result = ds_fut.result()
+        ds_ok = (ds_result
+                 and not ds_result.startswith("[错误]")
+                 and not ds_result.startswith("[跳过]")
+                 and _looks_valid(ds_result))
+        if ds_ok:
+            # ✔ 文字类图片 → 等 PaddleOCR 出最佳结果（最多 PADDLE_TIMEOUT 秒）
+            done_pd, _ = concurrent.futures.wait([pd_fut], timeout=PADDLE_TIMEOUT)
+            if done_pd:
+                pd_result = pd_fut.result()
+                if pd_result and not pd_result.startswith("[错误]"):
+                    pool.shutdown(wait=False)
+                    return pd_result
+            # PaddleOCR 超时／失败 → 返回 deepseek 结果
+            pool.shutdown(wait=False)
+            return ds_result
+
+    # ── 阶段二：非文字类 或 deepseek 超时 → 三路竞速 ──
     done, pending = concurrent.futures.wait(
-        [gpt_fut, ds_fut],
+        [pd_fut, gpt_fut, ds_fut],
         return_when=concurrent.futures.FIRST_COMPLETED,
-        timeout=120
+        timeout=120,
     )
 
-    for fut in done:
-        try:
-            result = fut.result(timeout=0)
-            if result and not result.startswith("[错误]") and not result.startswith("[跳过]") and _looks_valid(result):
-                pool.shutdown(wait=False)
-                return result
-        except Exception:
-            continue
-
-    # deepseek 烂结果但 gpt-4o 还没完——等它
-    if gpt_fut in pending:
-        done2, _ = concurrent.futures.wait([gpt_fut], timeout=120)
-        for fut in done2:
+    # PaddleOCR 优先返回（对文字版面效果最好）
+    for fut in (pd_fut, gpt_fut, ds_fut):
+        if fut in done:
             try:
                 result = fut.result(timeout=0)
-                if result and not result.startswith("[错误]") and not result.startswith("[跳过]") and _looks_valid(result):
+                if (result
+                        and not result.startswith("[错误]")
+                        and not result.startswith("[跳过]")
+                        and _looks_valid(result)):
                     pool.shutdown(wait=False)
                     return result
             except Exception:
                 continue
 
+    # ── 残局：等剩余未完成的引擎 ──
+    remaining = [f for f in (pd_fut, gpt_fut) if f not in done]
+    if remaining:
+        done2, _ = concurrent.futures.wait(remaining, timeout=120)
+        for fut in done2:
+            try:
+                result = fut.result(timeout=0)
+                if (result
+                        and not result.startswith("[错误]")
+                        and not result.startswith("[跳过]")
+                        and _looks_valid(result)):
+                    pool.shutdown(wait=False)
+                    return result
+            except Exception:
+                continue
+
+    # ── 最终 fallback：有任何非错误结果就用 ──
+    for fut in (pd_fut, ds_fut, gpt_fut):
+        try:
+            result = fut.result(timeout=5)
+            if result and not result.startswith("[错误]") and not result.startswith("[跳过]"):
+                pool.shutdown(wait=False)
+                return result
+        except Exception:
+            continue
+
     pool.shutdown(wait=False)
-    return "[错误] 竞速模式：所有云端模型均失败"
+    return "[错误] 所有引擎均失败"
+
+
 
 
 def ocr(image_path, prompt=None, model=None):
@@ -533,7 +570,7 @@ def ocr(image_path, prompt=None, model=None):
         return _call_modelscope(image_path, p, info["id"])
     if model in SF_MODELS:
         return _call_siliconflow(image_path, p, SF_MODELS[model])
-    return _call_github_models(image_path, p, model)
+
 
 
 # ── 并行模型分析 ──
@@ -544,7 +581,6 @@ MODEL_REGISTRY = {
     "paddle":       {"provider": "paddle-custom",   "id": "PaddleOCR-VL-1.6"},
     "gpt-4o":       {"provider": "github",         "id": "openai/gpt-4o"},
     "ms-vl-235b":   {"provider": "modelscope",     "id": "Qwen/Qwen3-VL-235B-A22B-Instruct"},
-    "ms-vl-30b":    {"provider": "modelscope",     "id": "Qwen/Qwen3-VL-30B-A3B-Instruct"},
 }
 
 
@@ -558,8 +594,6 @@ def _run_single_model(image_path, prompt, model_name):
             result = _call_paddle_custom(image_path, prompt)
         elif info["provider"] == "dashscope":
             result = _call_dashscope(image_path, prompt, info["id"])
-
-            result = _call_vision_api(image_path, prompt, info["id"], SF_API_URL, SF_API_KEY)
         return model_name, result
     except Exception as e:
         return model_name, f"[错误] {e}"

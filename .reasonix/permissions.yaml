@@ -1,0 +1,67 @@
+# ── 全局权限（跨会话生效）──
+global:
+  readonly_paths:
+    - "C:\\Windows\\**"
+    - "C:\\Program Files\\**"
+    - "D:\\Reasonix\\archive-归档\\**"
+    - "D:\\Reasonix\\memory\\**"
+
+  require_approval:
+    - "rm -rf"
+    - "del /f"
+    - "format"
+    - "shutdown"
+    - "reg add"
+    - "reg delete"
+
+# ── 项目权限 ──
+project:
+  writable_paths:
+    - "D:\\Reasonix\\scripts\\**"
+    - "D:\\Reasonix\\learning-学习\\**"
+    - "D:\\Reasonix\\reference-参考\\**"
+    - "D:\\Reasonix\\.reasonix\\**"
+    - "D:\\Reasonix\\tools-工具\\**"
+    - "D:\\临时\\**"
+
+  deny_write:
+    - "D:\\Reasonix\\CLAUDE.md"
+    - "D:\\Reasonix\\MEMORY.md"
+    - "D:\\Reasonix\\.mcp.json"
+
+  auto_approve_tools:
+    - "read_file"
+    - "grep"
+    - "glob"
+    - "ls"
+    - "list_windows"
+    - "get_screenshot"
+    - "get_active_window"
+    - "clipboard_read"
+    - "find_file"
+    - "lsp_diagnostics"
+    - "lsp_definition"
+    - "lsp_references"
+    - "lsp_hover"
+    - "bash"
+
+operations:
+  dangerous_writes:
+    - "delete_range"
+    - "delete_symbol"
+    - "write_file"
+
+  safe_writes:
+    - "edit_file"
+    - "multi_edit"
+
+# ── 会话覆盖（session override）──
+# 允许会话中临时提权/降权，会话结束自动回收
+session_override:
+  # 临时提权：写入白名单外的路径
+  temporary_writable: []
+  # 临时降权：本会话禁止写入的额外路径
+  temporary_deny: []
+  # 临时批准：本会话自动批准的额外工具
+  temporary_approve: []
+  # 生命周期：会话结束时全部清空

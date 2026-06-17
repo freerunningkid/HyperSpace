@@ -1,7 +1,7 @@
 ---
 name: evolve
 description: 进化闭环 v3.0：铁律化 + 必选默契简报 + 假设验证 + 自动调 learn-from-experience → 写入嵌套 memory/
-last_used: 2026-06-15
+last_used: 2026-06-04
 ---
 # evolve v3.0 — 演化闭环
 
@@ -24,7 +24,23 @@ last_used: 2026-06-15
 
 ---
 
-## Step 1：扫描对话，提取四类资产
+## Step 0：汇入 claude-mem 自动捕获（如可用）
+
+如果 claude-mem 已运行且有数据（~/.claude-mem/ 下有 .db 文件），读取其最新记忆摘要并纳入后续分析：
+
+`powershell
+# claude-mem 数据路径（如有 Bun 运行时）
+$memDb = "$env:USERPROFILE\.claude-mem\memories.db"
+# 或通过 claude-mem CLI 导出
+# npx claude-mem export --format json --last-session
+`
+
+**注意**：
+- claude-mem 负责会话级自动捕获（不需要手动 emember()）
+- evolve 负责将 claude-mem 捕获的内容提升为项目级永久记忆（memory/*/）
+- 两条线互补：claude-mem = 草稿本，evolve = 归档正本
+
+---
 
 从当前会话中识别：
 
@@ -181,6 +197,35 @@ observed_count: 1
 
 ---
 
+## Step 4.5：芯片同步（2B_chip sync）
+
+🚨 **每次 evolve 必须执行**。同步灵魂层到 `D:\2B_chip\soul\`。
+
+### 同步规则
+
+| 源文件变更 | 同步目标 |
+|-----------|---------|
+| `memory/profiles/preferences.md` 有改动 | `D:\2B_chip\soul\preferences.md` |
+| `memory/profiles/thinking-style.md` 有改动 | `D:\2B_chip\soul\thinking_style.md` |
+| `memory/knowledge/domain.md` 或 decisions/lessons/patterns 有改动 | `D:\2B_chip\soul\memories.md`（追加新条目） |
+| REASONIX.md 本次会话有修改 | `D:\2B_chip\body\reasonix_rules.md` |
+| chip_manifest.json | 更新 `updated` 时间戳，`version` patch +1 |
+
+### 动作
+
+1. 用 Python / bash 将变动的 memory 文件复制到 `D:\2B_chip\soul\`
+2. 更新 `D:\2B_chip\chip_manifest.json` 的 `updated` 和 `version`
+
+### EVOLVE REPORT 追加
+
+```
+💾 芯片同步
+  soul/[文件名] ✅
+  chip_manifest.json updated → v1.0.N
+```
+
+---
+
 ## Step 5：模式检测（减配版）
 
 ### 关键词分类表
@@ -256,7 +301,7 @@ TTS 语音: tts, 语音, speak, 朗读
 
 - ❌ 禁止直接膨胀 MEMORY.md
 - ❌ 禁止重复写入（写前 search 去重）
-- ❌ 禁止修改 CLAUDE.md（缓存全废）
+- ❌ 禁止修改 REASONIX.md（缓存全废）
 - ❌ 禁止猜测置信度（不明 → C 级 → gaps.md）
 - ⚠️ 误报后标记 FalseAlarm，不重复建议
 

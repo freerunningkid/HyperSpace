@@ -23,12 +23,17 @@ IDMan.exe /d <URL> [/n] [/s] [/p <save_path>] [/f <filename>]
 |------|------|
 | `/d URL` | 添加下载任务（必需） |
 | `/n` | **静默模式**：不弹出"添加下载"对话框，直接使用默认设置 |
-| `/s` | 立即开始下载队列 |
+| `/s` | ⚠ 启动整个下载队列（非单个任务），已弃用 — 改用 IDM 自动调度 |
 | `/p path` | 指定保存目录（可选，默认 IDM 下载文件夹） |
 | `/f name` | 指定保存文件名（可选，默认从 URL 提取） |
 | `/a` | 仅添加到队列，不立即开始 |
 
 ## 执行流程
+
+### Step 0: 去重检查
+- 检查在当前会话中是否已经为同一 URL 提交过 IDM 任务
+- 已提交过 → **跳过**，告知用户"该下载已在 IDM 队列中"
+- 未提交过 → 记录 URL 到会话内存后继续
 
 ### Step 1: 获取准确的下载链接
 - 从网页/API 响应中提取 **直接下载链接**（非页面链接）
@@ -41,7 +46,7 @@ IDMan.exe /d <URL> [/n] [/s] [/p <save_path>] [/f <filename>]
 
 ### Step 3: 构造命令
 ```cmd
-"D:\软件\Internet Download Manager\IDM\IDMan.exe" /d "<直链URL>" /n /s /p "<保存目录>"
+"D:\软件\Internet Download Manager\IDM\IDMan.exe" /d "<直链URL>" /n /p "<保存目录>"
 ```
 
 ### Step 4: 执行
@@ -58,3 +63,4 @@ IDMan.exe /d <URL> [/n] [/s] [/p <save_path>] [/f <filename>]
 - 如果 IDM 未运行，`IDMan.exe /d` 会自动启动 IDM 主程序
 - 不要在 `bash(run_in_background=true)` 中执行，用 `cmd.exe /c` 包裹执行即可（路径含中文时 bash 直调失败）
 - **绝不使用键鼠模拟、SendKeys、AutoHotkey 等方式**——命令行 `/n` 参数就是为静默设计的
+- **禁止使用 `/s` 参数**：`/s` 会启动**整个下载队列**中的所有待下载任务，而不仅是刚添加的任务，是重复下载的根因。IDM 有内置调度器，`/d` 添加后会自动开始下载，无需额外触发

@@ -30,7 +30,7 @@ last_used: 2026-06-04
 python D:\Reasonix\scripts\lib\clipboard_ocr.py --model ms-vl-30b
 ```
 
-脚本自动：从剪贴板读取图片 → 保存到 `D:\Reasonix\screenshots-截图\screenshot_YYYYMMDD_HHMMSS.png`
+脚本自动：从剪贴板读取图片 → 保存到 `D:\Reasonix\截图\screenshot_YYYYMMDD_HHMMSS.png`
 
 如果剪贴板为空 → 提示用户"请先截图（Win+Shift+S 或 Alt+A）"
 
@@ -50,7 +50,7 @@ python D:\Reasonix\scripts\lib\clipboard_ocr.py --model ms-vl-30b
 ### Step 3: 输出结果
 
 ```
-📸 截图已保存: D:\Reasonix\screenshots-截图\screenshot_20260603_143021.png
+📸 截图已保存: D:\Reasonix\截图\screenshot_20260603_143021.png
 
 [OCR 结果]
 ...
@@ -61,7 +61,7 @@ python D:\Reasonix\scripts\lib\clipboard_ocr.py --model ms-vl-30b
 ## 反模式
 
 - ❌ 用户说"识别截图"但剪贴板空的 → 先让他截图，不要反复重试
-- ❌ 对同一张截图跑两次 OCR → 图片已保存，直接搜 `screenshots-截图/` 目录
+- ❌ 对同一张截图跑两次 OCR → 图片已保存，直接搜 `截图/` 目录
 - ❌ 用户没说 OCR，不要主动抓剪贴板
 
 ## 引擎快速参考

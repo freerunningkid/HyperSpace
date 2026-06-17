@@ -1,3 +1,18 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "os-safe": {
+      "command": "python",
+      "args": ["D:\\Reasonix\\scripts\\mcp\\os_safe_server.py"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    },
+    "voice": {
+      "command": "python",
+      "args": ["D:\\Reasonix\\scripts\\mcp\\voice_server.py"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
 }

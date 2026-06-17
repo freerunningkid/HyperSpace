@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 
 Write-Host "正在移除右键菜单 Reasonix 对话..." -ForegroundColor Cyan
 

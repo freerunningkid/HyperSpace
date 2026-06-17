@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$TargetDir = ""
 )
 
@@ -163,6 +163,11 @@ if ($festival) {
 }
 
 Write-Host "  📂 $(Get-Location)" -ForegroundColor DarkGray
+# Version (native reasonix --version, no toml parsing)
+$reasonixVer = & { reasonix --version 2>$null }
+if ($LASTEXITCODE -eq 0 -and $reasonixVer) {
+    Write-Host "  $reasonixVer" -ForegroundColor DarkGray
+}
 Write-Host "  ──────────────── " -ForegroundColor DarkGray
 Write-Host ""
 
@@ -174,4 +179,6 @@ reasonix chat
 # 退出后
 Write-Host ""
 Write-Host "  会话已结束。我等你回来。" -ForegroundColor Cyan
+Write-Host "  【提醒】记得在 agent 内调 run_skill(""evolve"") 完成记忆固化。" -ForegroundColor DarkGray
+Write-Host "  【提醒】claude-mem 在后台自动捕获会话内容。" -ForegroundColor DarkGray
 Write-Host ""

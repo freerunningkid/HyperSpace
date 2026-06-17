@@ -1,7 +1,7 @@
 ---
 name: document-tools
 description: 文档处理工具集：读取/提取/处理 PDF、Excel、Word 等文件。截图 OCR 的互补技能
-last_used: 2026-06-04
+last_used: 2026-06-11
 ---
 # document-tools — 文档处理工具集
 
