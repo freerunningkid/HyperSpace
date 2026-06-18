@@ -70,3 +70,45 @@ Desktop.ini
 # 截图
 截图/
 .screenshot_monitor.lock
+
+# 运行时日志
+*.log
+logs/
+logs-日志/
+proxy.log
+watchdog.log
+
+# 临时目录
+tmp/
+scripts/tmp/
+mcp_servers/
+
+# 备份文件
+*.bak
+.mcp.json.bak
+
+# Reasonix CLI 二进制（每台机器各自下载）
+reasonix-cli/reasonix.exe
+reasonix-cli/reasonix.exe.*.bak
+reasonix-cli/python*
+reasonix-cli/pip*
+
+# 大型工具二进制（各机独立安装）
+tools-工具/PromptOptimizer/
+tools-工具/Understand-Anything/
+tools-工具/llama-cpp/
+tools-工具/everything-cli/es.exe
+.tool_cache.json
+
+# 截图
+screenshots-截图/
+
+# 本地配置（每台机器不同）
+config/opencode.json
+config/qwen3.5-copilot.Modelfile
+
+# 系统生成/临时
+assets/reasonix-icon.*
+assets/reasonix.png
+fix_*.ps1
+reference-参考/github-open-source-recommendations.md

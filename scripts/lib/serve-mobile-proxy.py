@@ -2,8 +2,8 @@
 serve-mobile-proxy.py — Reasonix 移动端反向代理
 ===============================================
 功能：
-  1. 在内部端口 127.0.0.1:8789 启动 reasonix serve
-  2. 在 0.0.0.0:8787 启动反向代理，转发请求到内部端口
+  1. 在内部端口 127.0.0.1:3000 启动 reasonix serve（避开 Hyper-V 预留 8450-9050）
+  2. 在 0.0.0.0:8300 启动反向代理，转发请求到内部端口
   3. 对 HTML 响应注入移动端适配修复（safe-area + keyboard）
 
 用法：
@@ -44,8 +44,8 @@ def log(msg: str):
             f.write(line + "\n")
     except Exception:
         pass
-PUBLIC_PORT = 8787          # 外部访问端口（固定）
-INTERNAL_PORT = 8789        # 内部 reasonix serve 端口
+PUBLIC_PORT = 8300          # 外部访问端口（避开了 Hyper-V 预留范围 8450-9050）
+INTERNAL_PORT = 3000        # 内部 reasonix serve 端口
 BACKEND_URL = f"http://127.0.0.1:{INTERNAL_PORT}"
 
 # ── 注入的 CSS ─────────────────────────────────────────────
