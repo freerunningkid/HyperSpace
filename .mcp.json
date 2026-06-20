@@ -13,6 +13,13 @@
       "env": {
         "PYTHONIOENCODING": "utf-8"
       }
+    },
+    "computer-control": {
+      "command": "python",
+      "args": ["D:\\Reasonix\\scripts\\mcp\\computer_control_server.py"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      }
     }
   }
 }

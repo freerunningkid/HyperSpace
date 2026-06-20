@@ -24,21 +24,24 @@ last_used: 2026-06-04
 
 ---
 
-## Step 0：汇入 claude-mem 自动捕获（如可用）
+## Step 0：汇入外部记忆捕获（如可用）
 
-如果 claude-mem 已运行且有数据（~/.claude-mem/ 下有 .db 文件），读取其最新记忆摘要并纳入后续分析：
+### 0a claude-mem（如已安装且可用）
 
-`powershell
-# claude-mem 数据路径（如有 Bun 运行时）
+如果 `~/.claude-mem/` 存在且有 `.db` 文件，读取其最新记忆摘要并纳入后续分析（仅在 Claude Code 环境）。
+
+```powershell
 $memDb = "$env:USERPROFILE\.claude-mem\memories.db"
-# 或通过 claude-mem CLI 导出
-# npx claude-mem export --format json --last-session
-`
+```
 
-**注意**：
-- claude-mem 负责会话级自动捕获（不需要手动 emember()）
-- evolve 负责将 claude-mem 捕获的内容提升为项目级永久记忆（memory/*/）
-- 两条线互补：claude-mem = 草稿本，evolve = 归档正本
+### 0b Reasonix 历史会话（Cli 环境）
+
+如果最近有保存的会话（Reasonix sessions 目录），可导入最近一次会话的记忆摘要。
+
+**注意**：claude-mem 和 Reasonix 会话互为补充：
+- 有 claude-mem 时 → 用它作草稿本
+- 无 claude-mem 时 → 跳过此步（非必须）
+- evolve 始终负责将捕获内容提升为 project-level 永久记忆（memory/*/）
 
 ---
 
