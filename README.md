@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Logo.png" alt="HyperSpace" width="200">
+</p>
+
 # 🧠 HyperSpace — 混合推理引擎 v2.0 (原生实现)
 
 [![tests](https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml/badge.svg)](https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml)
