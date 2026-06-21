@@ -2,7 +2,7 @@
 
 向本地 Agent (Reasonix / ClaudeCode / Copilot) 暴露单一工具:
   hyperspace_query(prompt, images?, context?, mode?)
-内部按图片/复杂度自动路由到免费档(智谱 GLM-4-Flash / GLM-4V-Flash)或廉价档
+内部按图片/复杂度自动路由到免费档(智谱 GLM-4.7-Flash / GLM-4.6V-Flash)或廉价档
 (DeepSeek / Kimi), 仅极少数高精度需求走 premium. 全部调用厂商官方 OpenAI 兼容 API,
 合法、可开源.
 
@@ -34,7 +34,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 import mcp.types as types
 
-from hyperspace.config import Config, load_config
+from hyperspace.config import COST_LOG, Config, load_config
 from hyperspace.cost import record as record_cost
 from hyperspace.executor import Executor
 from hyperspace.providers import ProviderError
@@ -47,8 +47,35 @@ server = Server("hyperspace")
 _cfg: Config = load_config()
 _executor = Executor(_cfg)
 
-# mode 枚举 (供 inputSchema)
-_MODES = [t.value for t in Tier]
+# ── 启动诊断 ─────────────────────────────────────────────────────
+_STARTUP_MSGS: list[str] = []
+
+_all_tiers = {
+    "free_text": "免费文本 (智谱 GLM-4.7-Flash)",
+    "free_vision": "免费识图 (智谱 GLM-4.6V-Flash)",
+    "cheap_capable": "廉价能力 (DeepSeek/Kimi)",
+    "premium": "高精度 (Claude/GPT)",
+}
+for tname, tdesc in _all_tiers.items():
+    cands = _cfg.candidates_for(tname)
+    if cands:
+        descs = [f"{c.provider}/{c.model}" for c in cands]
+        _STARTUP_MSGS.append(f"  ✅ {tname:<15s} {' → '.join(descs)}")
+    else:
+        key_envs = {
+            "free_text": "ZHIPU_API_KEY",
+            "free_vision": "ZHIPU_API_KEY",
+            "cheap_capable": "DEEPSEEK_API_KEY 或 MOONSHOT_API_KEY",
+            "premium": "OPENROUTER_API_KEY",
+        }
+        hint = key_envs.get(tname, "?")
+        _STARTUP_MSGS.append(f"  ⏸ {tname:<15s} 无可用候选 (需 {hint})")
+
+if not _cfg.candidates_for("free_text") and not _cfg.candidates_for("cheap_capable"):
+    _STARTUP_MSGS.insert(0, "  ⛔ 所有档位均无可用候选! 请在 .env 配置 API key。")
+    _STARTUP_MSGS.append("  📄 参考 .env.example 或 README.md")
+
+_STARTUP_MSGS.append(f"  📊 已有成本日志: {len([e for e in open(COST_LOG).readlines() if e.strip()]) if COST_LOG.exists() else 0} 条")
 
 
 @server.list_tools()
@@ -150,9 +177,9 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 
 async def main():
-    print(f"[hyperspace] 启动, 可用 tier 候选: "
-          f"{[t for t in _cfg.providers if _cfg.candidates_for(t)]}",
-          file=sys.stderr, flush=True)
+    print("[hyperspace] 🚀 启动", file=sys.stderr, flush=True)
+    for msg in _STARTUP_MSGS:
+        print(f"[hyperspace] {msg}", file=sys.stderr, flush=True)
     async with stdio_server() as (reader, writer):
         await server.run(reader, writer, server.create_initialization_options())
 
