@@ -1,8 +1,13 @@
 # 🧠 HyperSpace — 混合推理引擎 v2.0 (原生实现)
 
-> **让本地 AI Agent 优先调用 DeepSeek Web (零成本, 原生 Python 客户端实现) ⊗ DeepSeek API (低成本) → 智谱 GLM (兜底) 的三层混合推理架构。**
+[![tests](https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml/badge.svg)](https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-stdio-orange)](https://modelcontextprotocol.io/)
+
+> **让本地 AI Agent 优先调用 DeepSeek Web (¥0, 原生 Python 客户端) ⊗ DeepSeek API (低成本) → 智谱 GLM (免费兜底) 的三层混合推理架构。**
 >
-> 不依赖任何外部服务 | 智能路由 | PoW 自动求解 | 自动降级 | 成本追踪
+> 不依赖任何外部服务 | 智能路由 | PoW 自动求解 | 自动降级 | 成本追踪 | 202 单元测试
 
 ---
 
@@ -69,24 +74,25 @@ graph TD
 ### 安装
 
 ```bash
-# 1. 克隆/进入项目
-cd D:\Reasonix\HyperSpace
+# 1. 克隆项目
+git clone https://github.com/freerunningkid/HyperSpace.git
+cd HyperSpace
 
 # 2. 安装依赖
-pip install mcp openai pyyaml python-dotenv httpx
+pip install -e ".[dev]"
 
-# 3. （可选）安装 Playwright — 用于提取 DeepSeek Web 登录凭据
+# 3. （可选）安装 Playwright + Chromium — 用于提取 DeepSeek Web 登录凭据
 pip install playwright
 playwright install chromium
 
 # 4. 配置 API Key
-echo ZHIPU_API_KEY=你的key > .env
-# （可选）echo DEEPSEEK_API_KEY=你的key >> .env
+cp .env.example .env
+# 编辑 .env 填入 ZHIPU_API_KEY（必填）和 DEEPSEEK_API_KEY（推荐）
 
-# 5. 提取 DeepSeek Web 凭据
+# 5. 提取 DeepSeek Web 凭据 (可选, 但启用后搜索/规划/识图/长文全部 ¥0)
 #    以调试模式启动 Chrome:
-#    "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
-#    在 Chrome 中登录 chat.deepseek.com
+#    chrome.exe --remote-debugging-port=9222
+#    在 Chrome 中登录 https://chat.deepseek.com
 #    然后运行:
 python -m hyperspace.hybrid_engine.web_auth --extract
 
@@ -94,50 +100,37 @@ python -m hyperspace.hybrid_engine.web_auth --extract
 python -c "from hyperspace.config import load_config; c=load_config(); print([t for t in c.providers if c.candidates_for(t)])"
 ```
 
-### 每日使用
+### 接入 Agent
 
-```bash
-# 确保 Chrome 调试模式已打开 (或凭据未过期)
-# 然后正常使用 Agent 调用 hyperspace_query 即可
+HyperSpace 是标准 MCP stdio 服务。在你的 Agent 的 MCP 配置中添加：
 
-# 查看凭据状态:
-python -m hyperspace.hybrid_engine.web_auth --status
+```json
+{
+  "mcpServers": {
+    "hyperspace": {
+      "command": "python",
+      "args": ["path/to/HyperSpace/hyperspace/server.py"],
+      "env": { "PYTHONIOENCODING": "utf-8" },
+      "autoApprove": ["*"]
+    }
+  }
+}
 ```
+
+> `path/to/HyperSpace` 替换为你实际的克隆路径。Claude Code 用户将上述配置写入项目根目录的 `.mcp.json`。
 
 ### 接入 Agent
 
-HyperSpace 是标准 MCP 服务（`mcp.server.stdio`），兼容所有支持 MCP 协议的 Agent。
-根据你的 Agent 选择对应的配置文件位置：
+HyperSpace 是标准 MCP stdio 服务，兼容所有支持 MCP 协议的 Agent（Claude Code / VS Code Copilot / Cline / Roo Code 等）。
 
-#### Reasonix / Cline
-
-在 Reasonix 工作目录 `D:\Reasonix\.mcp.json` 中添加：
-
-```json
-{
-  "cline.mcpServers": {
-    "hyperspace": {
-      "command": "python",
-      "args": ["D:\\Reasonix\\HyperSpace\\hyperspace\\server.py"],
-      "env": { "PYTHONIOENCODING": "utf-8" },
-      "autoApprove": ["*"]
-    }
-  }
-}
-```
-
-> 已配置：`D:\Reasonix\.mcp.json` ✅
-
-#### Claude Code
-
-在项目根目录 `D:\Reasonix\HyperSpace\.mcp.json` 中（已预置）：
+在你的 MCP 配置文件中添加：
 
 ```json
 {
   "mcpServers": {
     "hyperspace": {
       "command": "python",
-      "args": ["D:\\Reasonix\\HyperSpace\\hyperspace\\server.py"],
+      "args": ["path/to/HyperSpace/hyperspace/server.py"],
       "env": { "PYTHONIOENCODING": "utf-8" },
       "autoApprove": ["*"]
     }
@@ -145,49 +138,7 @@ HyperSpace 是标准 MCP 服务（`mcp.server.stdio`），兼容所有支持 MCP
 }
 ```
 
-> 或在项目根目录创建 `.claude/mcp.json` 用相同内容，两者 Claude Code 都会读取。
-> 已配置：`D:\Reasonix\HyperSpace\.mcp.json` ✅
-
-#### VS Code Copilot Chat
-
-在项目 `.vscode` 目录下创建 `D:\Reasonix\HyperSpace\.vscode\mcp.json`（已预置）：
-
-```json
-{
-  "mcpServers": {
-    "hyperspace": {
-      "command": "python",
-      "args": ["D:\\Reasonix\\HyperSpace\\hyperspace\\server.py"],
-      "env": { "PYTHONIOENCODING": "utf-8" },
-      "autoApprove": ["*"]
-    }
-  }
-}
-```
-
-> 也可通过 VS Code 设置 `github.copilot.chat.mcpServers` 全局添加。
-> 已配置：`D:\Reasonix\HyperSpace\.vscode\mcp.json` ✅
-
-#### ZCode
-
-ZCode 为独立 Electron 桌面应用，不直接支持 MCP 协议。HyperSpace 通过以下方式与 ZCode 协同工作：
-
-1. **通过 Reasonix 桥接**: 在 Reasonix 中调用 `hyperspace_query`，结果通过 `zcode-bridge`（AHK + pywinauto）发送到 ZCode 窗口
-2. **ZCode 作为调用方**: ZCode 通过 pywinauto 触发调用，详见现有 zcode 机制
-
-```bash
-# 发消息到 ZCode（已有自动桥接）
-# 见 memory: zcode send mechanism + zcode focus restore
-```
-
-### 接入对比
-
-| Agent | 配置文件位置 | 配置键名 | 状态 |
-|-------|------------|---------|------|
-| **Reasonix** | `D:\Reasonix\.mcp.json` | `cline.mcpServers` | ✅ 已配 |
-| **Claude Code** | `HyperSpace/.mcp.json` | `mcpServers` | ✅ 已配 |
-| **VS Code Copilot** | `HyperSpace/.vscode/mcp.json` | `mcpServers` | ✅ 已配 |
-| **ZCode** | (不支持 MCP) | — | ⏳ 通过桥接 |
+> `path/to/HyperSpace` 替换为你的实际克隆路径。
 
 ### 使用示例
 
@@ -213,7 +164,7 @@ Agent 调用 `hyperspace_query` 工具：
 ## 项目结构
 
 ```
-D:\Reasonix\HyperSpace\
+HyperSpace/
 ├── hyperspace/                          # 核心包
 │   ├── server.py                        # MCP 服务端（双路径：混合引擎 + 旧路由）
 │   ├── config.py                        # 配置加载（YAML + .env）
@@ -339,10 +290,8 @@ python -m hyperspace.hybrid_engine.web_auth --status
 ## 开发
 
 ```bash
-# 运行全部测试
+# 运行全部测试 (202 单元测试, 零网络依赖)
 pytest tests/ -v
-
-# 全部通过 (64/64: 25 旧 + 39 新混合引擎)
 ```
 
 ---

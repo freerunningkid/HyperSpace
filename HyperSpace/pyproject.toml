@@ -1,11 +1,28 @@
 [project]
 name = "hyperspace"
-version = "0.1.0"
-description = "HyperSpace — 让本地 Agent 优先调用免费/廉价云端大模型 API 的合法 MCP 路由器"
+version = "2.0.0"
+description = "HyperSpace — 让本地 AI Agent 优先调用 DeepSeek Web (¥0) ⊗ DeepSeek API (低成本) → 智谱 GLM (免费兜底) 的三层混合推理 MCP 服务"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "freerunningkid" }]
+keywords = ["mcp", "deepseek", "llm", "ai-agent", "router", "free", "zhipu"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/freerunningkid/HyperSpace"
+Repository = "https://github.com/freerunningkid/HyperSpace"
+Issues = "https://github.com/freerunningkid/HyperSpace/issues"
+
 dependencies = [
     "mcp>=1.2.0",
     "openai>=1.50.0",
