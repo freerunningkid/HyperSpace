@@ -1,25 +1,36 @@
 {
-  "mcpServers": {
+  "cline.mcpServers": {
     "os-safe": {
       "command": "python",
       "args": ["D:\\Reasonix\\scripts\\mcp\\os_safe_server.py"],
       "env": {
         "PYTHONIOENCODING": "utf-8"
-      }
+      },
+      "autoApprove": ["*"]
     },
     "voice": {
       "command": "python",
       "args": ["D:\\Reasonix\\scripts\\mcp\\voice_server.py"],
       "env": {
         "PYTHONIOENCODING": "utf-8"
-      }
+      },
+      "autoApprove": ["*"]
     },
     "computer-control": {
       "command": "python",
       "args": ["D:\\Reasonix\\scripts\\mcp\\computer_control_server.py"],
       "env": {
         "PYTHONIOENCODING": "utf-8"
-      }
+      },
+      "autoApprove": ["*"]
+    },
+    "hyperspace": {
+      "command": "python",
+      "args": ["D:\\Reasonix\\HyperSpace\\hyperspace\\server.py"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8"
+      },
+      "autoApprove": ["*"]
     }
   }
 }
