@@ -1,0 +1,44 @@
+# HyperSpace 混合引擎配置 v2.0 (原生实现)
+# DeepSeek Web (原生 Python 客户端) ↔ DeepSeek API → 智谱 GLM (兜底)
+
+routing:
+  default_executor: "deepseek_web"
+  fallback_order: ["deepseek_web", "deepseek_api", "zhipu"]
+  rules:
+    - condition: "has_image"
+      executor: "deepseek_web"
+    - condition: "needs_search"
+      executor: "deepseek_web"
+    - condition: "needs_planning"
+      executor: "deepseek_web"
+    - condition: "is_long"
+      executor: "deepseek_web"
+    - condition: "needs_coding"
+      executor: "deepseek_api"
+    - condition: "needs_translation"
+      executor: "deepseek_api"
+    - condition: "needs_structured_output"
+      executor: "deepseek_api"
+
+executors:
+  deepseek_web:
+    model: "deepseek-chat"
+    timeout: 120
+    search_enabled: true
+    thinking_enabled: true
+
+  deepseek_api:
+    provider: "deepseek"
+    base_url: "https://api.deepseek.com"
+    model: "deepseek-chat"
+    timeout: 60
+
+  zhipu:
+    provider: "zhipu"
+    base_url: "https://open.bigmodel.cn/api/paas/v4"
+    model: "glm-4.7-flash"
+    timeout: 30
+
+logging:
+  level: "INFO"
+  output: "data/hybrid_engine.log"
