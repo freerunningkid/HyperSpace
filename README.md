@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Logo.png" alt="HyperSpace" width="380">
+  <img src="Logo.png" alt="HyperSpace" width="550">
 </p>
 
 # HyperSpace — 混合推理引擎 v2.0 (原生实现)
