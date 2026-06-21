@@ -119,6 +119,57 @@ def get_session(
     return page, context, p
 
 
+# ── 等待流式输出完成 (web_vision.py / web_probe.py 共用) ──────────
+
+def wait_for_completion(page, timeout: int = 120) -> str:
+    """等待 DeepSeek 网页流式输出完成, 返回最后一条回复文本."""
+    import time as _time
+    deadline = _time.time() + timeout
+    last_text = ""
+    stable_rounds = 0
+
+    while _time.time() < deadline:
+        _time.sleep(1.0)
+        messages = page.locator(
+            ".ds-markdown, .markdown-body, .prose, article, "
+            "[data-testid='message-content']"
+        )
+        count = messages.count()
+        if count == 0:
+            continue
+        current = messages.last.text_content() or ""
+        if current == last_text:
+            stable_rounds += 1
+            if stable_rounds >= 3:  # 连续 3 秒无变化 → 完成
+                break
+        else:
+            stable_rounds = 0
+            last_text = current
+
+    page.wait_for_timeout(500)
+
+    messages = page.locator(
+        ".ds-markdown, .markdown-body, .prose, article, "
+        "[data-testid='message-content']"
+    )
+    text = ""
+    if messages.count() > 0:
+        text = messages.last.text_content() or ""
+    return text.strip()
+
+
+def send_and_wait(page, prompt: str, timeout: int = 120) -> str:
+    """在输入框填入 prompt → 发送 → 等待流式完成 → 返回回复."""
+    input_box = page.locator("textarea, div[contenteditable='true']").first
+    input_box.click()
+    page.wait_for_timeout(300)
+    input_box.fill(prompt)
+    page.wait_for_timeout(500)
+    input_box.press("Enter")
+    print(f"[session] ✉ 已发送: {prompt[:60]}...", file=sys.stderr, flush=True)
+    return wait_for_completion(page, timeout=timeout)
+
+
 def close_session(page, context, playwright):
     """安全关闭浏览器会话."""
     try:

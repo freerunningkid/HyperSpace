@@ -24,8 +24,9 @@ python -m playwright install chromium
 # 识图
 python -m hyperspace.experimental.web_vision --image path/to/photo.jpg
 
-# 通用对话 (web_probe.py, 后续阶段)
-python -m hyperspace.experimental.web_probe
+# 通用对话（管道/参数皆可）
+echo "你好，介绍一下你自己" | python -m hyperspace.experimental.web_probe --stdin
+python -m hyperspace.experimental.web_probe "写一段冒泡排序"
 ```
 
 ## 文件说明
@@ -34,7 +35,7 @@ python -m hyperspace.experimental.web_probe
 |------|------|------|
 | `session.py` | DeepSeek 会话管理 (共享登录态) | ✓ |
 | `web_vision.py` | CLI: 传图片 → DeepSeek 网页端识图 | ✓ |
-| `web_probe.py` | 通用对话探针 (待阶段5) | 🔜 |
+| `web_probe.py` | CLI: 通用文本对话 (支持参数/stdin) | ✓ |
 
 ---
 
