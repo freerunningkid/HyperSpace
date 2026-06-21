@@ -158,3 +158,8 @@ scripts/.venv/
 *.token
 *.secret
 *.key
+
+# 本地运行配置（每台机器不同，含权限白名单）
+reasonix.toml
+scripts/reasonix-guard.ps1
+scripts/install-reasonix-menu.ps1
