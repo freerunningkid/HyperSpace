@@ -49,6 +49,11 @@ _SEARCH_PATTERNS = [
     r"新闻", r"news", r"news?",
     r"当前", r"今天", r"today",
     r"实时", r"realtime",
+    r"查一下", r"搜一下", r"帮我搜",
+    r"最近", r"近期", r"最近有",
+    r"发生了什么", r"动态", r"进展",
+    r"热点", r"热门", r"趋势", r"trend",
+    r"有什么新的", r"有没有新",
 ]
 
 # 规划信号
@@ -59,6 +64,12 @@ _PLANNING_PATTERNS = [
     r"架构", r"设计", r"architecture", r"design",
     r"路线图", r"roadmap",
     r"框架", r"framework",
+    r"安排", r"制定", r"拟定",
+    r"攻略", r"指南", r"教程",
+    r"流程", r"方法论", r"策略",
+    r"怎么做", r"如何做", r"从零",
+    r"学习路线", r"成长路线",
+    r"项目管理", r"时间安排",
 ]
 
 # 编码信号 (含代码围栏)
@@ -87,6 +98,21 @@ _CODE_PATTERNS = [
     r"generate\s+\w+",            # generate code/number
     r"\w+\.py\b",                 # .py file reference
     r"\w+\.js\b",                 # .js file reference
+    r"帮我写", r"写段", r"写个脚本",
+    r"改一下", r"优化", r"优化一下",
+    r"报错", r"出错了", r"不工作",
+    r"怎么改", r"如何修改",
+    r"性能", r"效率", r"加速",
+    r"正则", r"regex", r"爬虫", r"爬取",
+    r"接口", r"API", r"api",
+    r"部署", r"deploy", r"上线",
+    r"测试", r"testing", r"单元测试",
+    r"SQL", r"数据库", r"database", r"查询",
+    r"命令行", r"CLI", r"终端",
+    r"Git", r"git", r"分支", r"合并",
+    r"Docker", r"容器", r"container",
+    r"配置", r"config", r"配置文件",
+    r"环境变量", r"env",
 ]
 
 # 翻译信号
@@ -94,6 +120,10 @@ _TRANSLATION_PATTERNS = [
     r"翻译", r"译成",
     r"translate", r"translate\s+(to|into)",
     r"翻译为", r"翻译成",
+    r"中译英", r"英译中", r"日译中",
+    r"用中文", r"用英文", r"用日语",
+    r"转成中文", r"转成英文",
+    r"翻一下", r"帮我翻",
 ]
 
 # 结构化输出
@@ -106,6 +136,10 @@ _STRUCTURED_PATTERNS = [
     r"YAML", r"yaml",
     r"列表", r"list",
     r"格式化为", r"format",
+    r"输出为", r"导出", r"生成表格",
+    r"Markdown", r"markdown", r"md",
+    r"清单", r"总结成", r"汇总",
+    r"整理成", r"按格式",
 ]
 
 # 长度阈值
