@@ -11,8 +11,8 @@ last_used: never
 
 | 设备 | Tailscale IP | 用途 |
 |------|-------------|------|
-| **办公 PC** | `100.113.140.16` | 日常开发/Reasonix 主环境 |
-| **家用 PC** | `100.118.44.21` | 备用/大模型推理 |
+| **办公 PC** | `<TAILSCALE_IP_OFFICE>` | 日常开发/Reasonix 主环境 |
+| **家用 PC** | `<TAILSCALE_IP_HOME>` | 备用/大模型推理 |
 | **手机 (Termux)** | 动态 | SSH 远程办公 PC |
 
 ## 常用命令
@@ -46,10 +46,10 @@ Restart-Service tailscaled
 ### SSH 远程连接
 ```bash
 # 从手机 SSH 到办公 PC
-ssh kid@100.113.140.16
+ssh kid@<TAILSCALE_IP_OFFICE>
 
 # 从手机 SSH 到家用 PC
-ssh kid@100.118.44.21
+ssh kid@<TAILSCALE_IP_HOME>
 ```
 
 ### 故障排查
@@ -69,8 +69,8 @@ ipconfig /flushdns
 ```bash
 # 手机端 (Termux)
 termux-wake-lock          # 防止后台断连
-ssh kid@100.113.140.16    # 连接办公 PC
-cd D:\AgentWork           # 进入工作目录
+ssh kid@<TAILSCALE_IP_OFFICE>    # 连接办公 PC
+cd D:\Reasonix           # 进入工作目录
 claude                    # 启动 Claude Code
 
 # 用完释放

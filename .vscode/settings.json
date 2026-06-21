@@ -1,0 +1,26 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell",
+            "args": ["-NoLogo"]
+        },
+        "Windows Terminal": {
+            "path": [
+                "${env:windir}\\System32\\wsl.exe",
+                "-d",
+                "Ubuntu"
+            ],
+            "icon": "terminal"
+        },
+        "cmd": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "/C",
+                "${env:windir}\\System32\\cmd.exe"
+            ],
+            "icon": "terminal-cmd"
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "Windows Terminal"
+}

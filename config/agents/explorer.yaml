@@ -1,0 +1,15 @@
+name: explorer
+description: >
+  代码库探索专用 agent。只读搜索不编辑，适合分析不熟悉代码库的结构、找入口点、追踪调用链。
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash
+disallowedTools:
+  - Edit
+  - Write
+  - NotebookEdit
+model: haiku
+permissionMode: plan
+isolation: worktree

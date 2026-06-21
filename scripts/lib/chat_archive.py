@@ -24,11 +24,11 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 # ====== 配置 ======
-PROJECT_DIR = r"C:\Users\KID\.claude\projects\d--AgentWork"
-OUTPUT_DIR = r"d:\AgentWork\03-历史聊天"
-MEMORY_DIR = r"C:\Users\KID\.claude\projects\d--AgentWork\memory"
-SHARED_MEMORY_DIR = r"d:\AgentWork\.claude\shared_memory"
-KNOWLEDGE_BASE = r"d:\AgentWork\02-知识库\问题解决记录.md"
+PROJECT_DIR = os.path.expanduser(r"~/.claude/projects/D--Reasonix")
+OUTPUT_DIR = r"D:\Reasonix\reference-参考\chat-archives"
+MEMORY_DIR = r"D:\Reasonix\memory"
+SHARED_MEMORY_DIR = r"D:\Reasonix\bridge"
+KNOWLEDGE_BASE = r"D:\Reasonix\knowledge-知识库\问题解决记录.md"
 CST = timezone(timedelta(hours=8))  # 中国时区
 
 # 不提取的附件类型

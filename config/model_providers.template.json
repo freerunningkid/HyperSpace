@@ -1,0 +1,77 @@
+{
+  "模型配置模板 — 用于 model_proxy.py",
+  "将 API Key 设到环境变量中，不在本文件保存敏感信息",
+  "复制本文件为 model_providers.json 并修改后生效",
+  "_说明": {
+    "type": "anthropic = 原生支持 Anthropic Messages API（如 DeepSeek）",
+    "type": "openai + anthropic_direct: true = API 本身支持 Anthropic 格式（如 Agnes）",
+    "type": "openai + anthropic_direct: false = 需要翻译为 OpenAI Chat 格式（如 GLM）"
+  },
+  "providers": {
+    "deepseek-v4-flash": {
+      "name": "DeepSeek V4 Flash",
+      "type": "anthropic",
+      "endpoint": "https://api.deepseek.com/anthropic/v1/messages",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "max_tokens": 8192
+    },
+    "deepseek-v4-pro": {
+      "name": "DeepSeek V4 Pro",
+      "type": "anthropic",
+      "endpoint": "https://api.deepseek.com/anthropic/v1/messages",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "max_tokens": 8192
+    },
+    "agnes-2.0-flash": {
+      "name": "Agnes 2.0 Flash",
+      "type": "openai",
+      "anthropic_direct": true,
+      "endpoint": "https://apihub.agnes-ai.com/v1/messages",
+      "api_key_env": "AGNES_API_KEY",
+      "max_tokens": 8192,
+      "context_window": 1048576
+    },
+    "glm-4.7-flash": {
+      "name": "GLM-4.7-Flash (智谱AI)",
+      "type": "openai",
+      "anthropic_direct": false,
+      "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "api_key_env": "ZHIPU_API_KEY",
+      "max_tokens": 8192,
+      "context_window": 131072
+    },
+    "siliconflow-qwen-32b": {
+      "name": "Qwen2.5-32B (硅基流动)",
+      "type": "openai",
+      "anthropic_direct": false,
+      "endpoint": "https://api.siliconflow.cn/v1/chat/completions",
+      "api_key_env": "SILICONFLOW_API_KEY",
+      "max_tokens": 8192,
+      "context_window": 65536
+    },
+    "groq-llama-4-fast": {
+      "name": "Llama 4 Fast (Groq)",
+      "type": "openai",
+      "anthropic_direct": false,
+      "endpoint": "https://api.groq.com/openai/v1/chat/completions",
+      "api_key_env": "GROQ_API_KEY",
+      "max_tokens": 8192,
+      "context_window": 131072
+    },
+    "dashscope-qwen-plus": {
+      "name": "Qwen-Plus (DashScope)",
+      "type": "openai",
+      "anthropic_direct": false,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "max_tokens": 8192,
+      "context_window": 131072
+    }
+  },
+  "aliases": {
+    "deepseek-v4-flash[1M]": "deepseek-v4-flash",
+    "deepseek-v4-pro[1M]": "deepseek-v4-pro",
+    "deepseek-v4-flash[32k]": "deepseek-v4-flash",
+    "deepseek-v4-pro[32k]": "deepseek-v4-pro"
+  }
+}

@@ -14,7 +14,6 @@ import time
 vocab = [
     # === 小金东个人信息 ===
     ("小金东", "xiao jin dong", 1),
-    ("李金东", "li jin dong", 1),
     ("小金东的", "xiao jin dong de", 1),
     ("金东", "jin dong", 1),
     # === Reasonix 项目 ===

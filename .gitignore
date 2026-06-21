@@ -112,3 +112,49 @@ assets/reasonix-icon.*
 assets/reasonix.png
 fix_*.ps1
 reference-参考/github-open-source-recommendations.md
+
+# Reasonix 安装文件（已搬到 D:\软件\Reasonix）
+/软件/Reasonix/
+
+# ============================================================
+# 公开仓库保护 — 个人信息 & 密钥（以下全部不提交）
+# ============================================================
+
+# 个人记忆（偏好、关系、决策、习惯）
+memory/
+
+# 个人知识库（含 API 端点、密钥占位符、计费信息）
+knowledge-知识库/
+
+# 个人学习笔记（含姓名、备考资料）
+learning-学习/
+
+# 个人参考归档（含密钥片段、个人信息）
+reference-参考/归档/
+reference-参考/Agent规则/
+reference-参考/Reasonix相关/
+
+# 个人文档 & 设计记录
+docs/
+
+# 对话记录
+conversations/
+
+# 个人配置文件（含用户名路径）
+config/reasonix/config.json
+config/claude/
+
+# 启动脚本（含密钥结构）
+scripts/startup/model-proxy-runner.bat
+
+# 个人化脚本（含姓名引用）
+scripts/reasonix-quick-menu.ahk
+scripts/tools/terminal-launcher.ps1
+
+# 本地模型文件
+scripts/.venv/
+
+# TOKEN / 密钥相关（补充）
+*.token
+*.secret
+*.key

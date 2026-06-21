@@ -1,0 +1,15 @@
+name: reviewer
+description: >
+  代码审查专用 agent。审查 diff 的正确性、安全性、性能，不直接修改代码。
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash
+disallowedTools:
+  - Edit
+  - Write
+  - NotebookEdit
+model: sonnet
+permissionMode: plan
+isolation: worktree

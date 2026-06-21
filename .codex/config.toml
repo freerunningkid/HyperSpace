@@ -1,0 +1,58 @@
+# Reasonix 项目信任配置
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+[trusted_projects."d:\\Reasonix"]
+path = "d:\\Reasonix"
+read_only = false
+auto_approve = true
+
+# 批准策略：全自动批准，无需手动选择
+[policy]
+approval = "auto-approve"
+auto_approve_commands = true
+
+# 沙盒设置：完全读写权限
+[sandbox]
+mode = "read-write"
+enabled = false
+
+# Codex 模型配置 — 支持随时切换
+# 使用方法：在对话框中输入 /model deepseek-v4-flash 或 /model deepseek-v4-pro
+model = "deepseek-v4-flash"
+
+# 自定义模型提供者：DeepSeek 等第三方模型
+# 全局配置已定义 model_provider = "custom" 指向本地代理
+# 模型列表由 Codex 代理自动从端点 /v1/models 获取
+
+# MCP 服务器：自动信任，不提示
+[mcp_settings]
+auto_skip_prompts = true
+trust_all_mcp = true
+auto_start = true
+
+[mcp_servers.computer-control]
+command = "python"
+args = ['D:\Reasonix\scripts\mcp\computer_control_server.py']
+
+[mcp_servers.computer-control.env]
+PYTHONIOENCODING = "utf-8"
+
+[mcp_servers.os-safe]
+command = "python"
+args = ['D:\Reasonix\scripts\mcp\os_safe_server.py']
+
+[mcp_servers.os-safe.env]
+PYTHONIOENCODING = "utf-8"
+
+[mcp_servers.os-safe.tools.secure_open_file]
+approval_mode = "approve"
+
+[mcp_servers.os-safe.tools.promote_to_production]
+approval_mode = "approve"
+
+[mcp_servers.voice]
+command = "python"
+args = ['D:\Reasonix\scripts\mcp\voice_server.py']
+
+[mcp_servers.voice.env]
+PYTHONIOENCODING = "utf-8"

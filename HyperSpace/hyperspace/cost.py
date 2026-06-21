@@ -22,7 +22,6 @@ PRICING = {
     # 免费档
     ("zhipu", "glm-4.7-flash"): (0.0, 0.0),
     ("zhipu", "glm-4.6v-flash"): (0.0, 0.0),
-    ("zhipu", "glm-4.7-flash"): (0.0, 0.0),
     # 廉价档
     ("deepseek", "deepseek-chat"): (0.27, 1.10),
     ("kimi", "moonshot-v1-32k"): (3.30, 3.30),

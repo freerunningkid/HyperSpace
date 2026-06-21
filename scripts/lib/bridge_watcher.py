@@ -1,7 +1,7 @@
 """
 桥文件监控 — 检测 ClaudeCode <-> Reasonix 2B 之间的新消息。
 
-监控 D:/AgentWork/.claude/bridge-to-2b.md 的变化，
+监控 D:/Reasonix/bridge-to-2b.md 的变化，
 检测新的 --- 分隔符后的消息，朗读并提示。
 
 用法:
@@ -15,7 +15,7 @@ import json
 import subprocess
 from datetime import datetime
 
-BRIDGE_FILE = r"D:\AgentWork\.claude\bridge-to-2b.md"
+BRIDGE_FILE = r"D:\Reasonix\bridge-to-2b.md"
 SPEAK_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "speak.py")
 WATCHED_BY = "Reasonix 2B"  # 本脚本代表谁
 

@@ -1,6 +1,6 @@
-import sqlite3, json, time, uuid
+import sqlite3, json, time, uuid, os
 
-db = sqlite3.connect('C:\\Users\\KID\\.zcode\\cli\\db\\db.sqlite')
+db = sqlite3.connect(os.path.expanduser('~\\.zcode\\cli\\db\\db.sqlite'))
 
 # Get current session
 sid = db.execute('SELECT id FROM session ORDER BY time_updated DESC LIMIT 1').fetchone()

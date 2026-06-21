@@ -1,5 +1,5 @@
-import sqlite3, json
-db = sqlite3.connect('C:\\Users\\KID\\.zcode\\cli\\db\\db.sqlite')
+import sqlite3, json, os
+db = sqlite3.connect(os.path.expanduser('~\\.zcode\\cli\\db\\db.sqlite'))
 db.text_factory = str
 
 # Part table schema

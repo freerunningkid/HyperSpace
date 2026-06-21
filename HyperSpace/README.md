@@ -1,44 +1,59 @@
-# 🧠 HyperSpace
+# 🧠 HyperSpace — 混合推理引擎 v2.0 (原生实现)
 
-> **让本地 AI Agent 优先调用免费/廉价云端大模型 API，构建混合推理架构，大幅降低推理成本。**
+> **让本地 AI Agent 优先调用 DeepSeek Web (零成本, 原生 Python 客户端实现) ⊗ DeepSeek API (低成本) → 智谱 GLM (兜底) 的三层混合推理架构。**
 >
-> 合法合规 | 零 token 路由 | 自动回退升档 | 成本追踪
+> 不依赖任何外部服务 | 智能路由 | PoW 自动求解 | 自动降级 | 成本追踪
 
 ---
 
 ## 为什么有 HyperSpace？
 
 本地 Agent（Reasonix / ClaudeCode / Copilot）调用大模型 API 时，**大量日常对话和简单推理本可以不花一分钱**。
-HyperSpace 是一个 MCP 服务层，在 Agent 和大模型 API 之间做智能路由：
+HyperSpace 是一个 MCP 服务层，在 Agent 和大模型之间做智能路由：
 
-- ✅ **日常对话** → **免费档**（智谱 GLM-4.7-Flash/4.6V-Flash，**完全免费**）
-- ✅ **图片识别** → **免费识图档**（智谱 GLM-4.6V-Flash，**完全免费**）
-- ✅ **编码/复杂推理** → **廉价档**（DeepSeek，约 ¥2/M token）
-- ✅ **高精度关键执行** → **premium 档**（预留 Claude/GPT 接口）
+### 三层混合引擎（原生实现）
 
-全部走**厂商官方 API**，合法合规，可公开发布。
+| 层 | 引擎 | 成本 | 实现方式 | 适用场景 |
+|---|---|---|---|---|
+| 🥇 **主力** | DeepSeek Web | **¥0** | 原生 Python 客户端 (PoW + 内部 API) | 规划、搜索、识图、长文本 |
+| 🥈 **辅力** | DeepSeek API | ~¥2/M token | OpenAI 兼容 API 调用 | 代码生成、翻译、结构化输出 |
+| 🥉 **兜底** | 智谱 GLM | **¥0** | OpenAI 兼容 API 调用 | 前两者都不可用 |
 
-> ⚠️ **关于「网页端大模型」的说明**：原创意是用 Playwright 自动化 DeepSeek Web 网页聊天界面。经核查，DeepSeek ToS 3.5(3) 等条款**明确禁止**自动化访问，这条路无法合法开源。HyperSpace 核心将「网页端」重新定义为「**免费云端开发者 API 档**」，使用厂商官方提供的免费/廉价 API 接口，**经济效果等价达成且完全合法**。个人实验用的 `experimental/` 模块依然保留，但严格隔离，不参与 MCP。
+> **核心创新**: 不依赖 OpenClaw / FreeLLMAPI 等外部服务。我们独立实现了 DeepSeek Web 的内部 API 调用（PoW 挑战求解、会话管理、流式对话、文件上传），Python 代码自包含，零外部依赖。
 
----
-
-## 架构
+### 架构图
 
 ```mermaid
 graph TD
     Agent[Agent<br/>Reasonix/ClaudeCode] -->|MCP stdio| HS[HyperSpace Server]
-    HS -->|hyperspace_query| Router[Router 路由判定]
-    Router -->|默认日常对话| Free[免费文本<br/>智谱 GLM-4.7-Flash]
-    Router -->|有图片| Vision[免费识图<br/>智谱 GLM-4.6V-Flash]
-    Router -->|编码/复杂推理| Cheap[廉价能力<br/>DeepSeek]
-    Router -->|极少数高精度| Premium[Premium<br/>Claude/GPT]
-    Free --> Cost[成本追踪<br/>→ hyperspace_cost.log]
-    Vision --> Cost
-    Cheap --> Cost
-    Premium --> Cost
+
+    subgraph "Hybrid Engine (核心)"
+        HR[HybridRouter] --> TA[TaskAnalyzer<br/>特征分析]
+        HR --> HC[HealthChecker<br/>凭据探测]
+        HR --> FB[FallbackManager<br/>降级管理]
+        HR --> RP[ResultProcessor<br/>结果后处理]
+
+        TA -->|规则匹配| DECISION{路由决策}
+        DECISION -->|图片/搜索/规划/长文| DW[DeepSeek Web<br/>原生 Python 客户端]
+        DECISION -->|代码/翻译/结构化| DA[DeepSeek API<br/>OpenAI Compat]
+        DECISION -->|兜底| ZP[智谱 GLM-4.7-Flash]
+
+        DW -->|PoW 求解 + 流式 SSE| WS[chat.deepseek.com]
+        DA -->|API 调用| DS[api.deepseek.com]
+        ZP -->|API 调用| ZS[open.bigmodel.cn]
+    end
+
+    subgraph "Auth 层"
+        WA[web_auth.py<br/>Playwright CDP] -->|提取 Cookie + Bearer| AJ[deepseek_web_auth.json]
+        AJ --> DW
+    end
+
+    HS -->|auto / force_web / force_api / force_zhipu| HR
+    HS -->|legacy modes| LR[旧路由<br/>select_tier + Executor]
+    LR --> LF[智谱/DeepSeek API]
 ```
 
-路由判定**零 token 成本** — 纯规则完成，不需要把判定交给大模型。
+路由判定**零 token 成本** — 纯关键词+规则完成，不需要把判定交给大模型。
 
 ---
 
@@ -47,31 +62,56 @@ graph TD
 ### 要求
 
 - Python 3.10+
-- 智谱 API Key（免费，[bigmodel.cn](https://bigmodel.cn/) 申请）— **免费档必填**
-- （可选）DeepSeek API Key — 廉价能力档
+- 智谱 API Key（免费，[bigmodel.cn](https://bigmodel.cn/) 申请）— **兜底必填**
+- （推荐）DeepSeek API Key — 辅力层
+- （可选）Chrome 浏览器 — DeepSeek Web 主力层需登录一次
 
 ### 安装
 
 ```bash
-# 1. 克隆项目
-cd D:\Reasonix
-git clone <repo-url> HyperSpace  # 或直接 cd HyperSpace
+# 1. 克隆/进入项目
+cd D:\Reasonix\HyperSpace
 
 # 2. 安装依赖
-pip install mcp openai pyyaml python-dotenv
+pip install mcp openai pyyaml python-dotenv httpx
 
-# 3. 配置 API Key
+# 3. （可选）安装 Playwright — 用于提取 DeepSeek Web 登录凭据
+pip install playwright
+playwright install chromium
+
+# 4. 配置 API Key
 echo ZHIPU_API_KEY=你的key > .env
 # （可选）echo DEEPSEEK_API_KEY=你的key >> .env
 
-# 4. 验证就绪
+# 5. 提取 DeepSeek Web 凭据
+#    以调试模式启动 Chrome:
+#    "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222
+#    在 Chrome 中登录 chat.deepseek.com
+#    然后运行:
+python -m hyperspace.hybrid_engine.web_auth --extract
+
+# 6. 验证就绪
 python -c "from hyperspace.config import load_config; c=load_config(); print([t for t in c.providers if c.candidates_for(t)])"
-# 应显示: ['free_text', 'free_vision'] 或更多
+```
+
+### 每日使用
+
+```bash
+# 确保 Chrome 调试模式已打开 (或凭据未过期)
+# 然后正常使用 Agent 调用 hyperspace_query 即可
+
+# 查看凭据状态:
+python -m hyperspace.hybrid_engine.web_auth --status
 ```
 
 ### 接入 Agent
 
-在 `.mcp.json`（Cline 格式）中添加：
+HyperSpace 是标准 MCP 服务（`mcp.server.stdio`），兼容所有支持 MCP 协议的 Agent。
+根据你的 Agent 选择对应的配置文件位置：
+
+#### Reasonix / Cline
+
+在 Reasonix 工作目录 `D:\Reasonix\.mcp.json` 中添加：
 
 ```json
 {
@@ -86,23 +126,86 @@ python -c "from hyperspace.config import load_config; c=load_config(); print([t 
 }
 ```
 
-对于 Reasonix（`reasonix.toml`），同理可配置 `[[plugins]]`。
+> 已配置：`D:\Reasonix\.mcp.json` ✅
+
+#### Claude Code
+
+在项目根目录 `D:\Reasonix\HyperSpace\.mcp.json` 中（已预置）：
+
+```json
+{
+  "mcpServers": {
+    "hyperspace": {
+      "command": "python",
+      "args": ["D:\\Reasonix\\HyperSpace\\hyperspace\\server.py"],
+      "env": { "PYTHONIOENCODING": "utf-8" },
+      "autoApprove": ["*"]
+    }
+  }
+}
+```
+
+> 或在项目根目录创建 `.claude/mcp.json` 用相同内容，两者 Claude Code 都会读取。
+> 已配置：`D:\Reasonix\HyperSpace\.mcp.json` ✅
+
+#### VS Code Copilot Chat
+
+在项目 `.vscode` 目录下创建 `D:\Reasonix\HyperSpace\.vscode\mcp.json`（已预置）：
+
+```json
+{
+  "mcpServers": {
+    "hyperspace": {
+      "command": "python",
+      "args": ["D:\\Reasonix\\HyperSpace\\hyperspace\\server.py"],
+      "env": { "PYTHONIOENCODING": "utf-8" },
+      "autoApprove": ["*"]
+    }
+  }
+}
+```
+
+> 也可通过 VS Code 设置 `github.copilot.chat.mcpServers` 全局添加。
+> 已配置：`D:\Reasonix\HyperSpace\.vscode\mcp.json` ✅
+
+#### ZCode
+
+ZCode 为独立 Electron 桌面应用，不直接支持 MCP 协议。HyperSpace 通过以下方式与 ZCode 协同工作：
+
+1. **通过 Reasonix 桥接**: 在 Reasonix 中调用 `hyperspace_query`，结果通过 `zcode-bridge`（AHK + pywinauto）发送到 ZCode 窗口
+2. **ZCode 作为调用方**: ZCode 通过 pywinauto 触发调用，详见现有 zcode 机制
+
+```bash
+# 发消息到 ZCode（已有自动桥接）
+# 见 memory: zcode send mechanism + zcode focus restore
+```
+
+### 接入对比
+
+| Agent | 配置文件位置 | 配置键名 | 状态 |
+|-------|------------|---------|------|
+| **Reasonix** | `D:\Reasonix\.mcp.json` | `cline.mcpServers` | ✅ 已配 |
+| **Claude Code** | `HyperSpace/.mcp.json` | `mcpServers` | ✅ 已配 |
+| **VS Code Copilot** | `HyperSpace/.vscode/mcp.json` | `mcpServers` | ✅ 已配 |
+| **ZCode** | (不支持 MCP) | — | ⏳ 通过桥接 |
 
 ### 使用示例
 
-Agent 调用 `hyperspace_query` 工具（单工具自动路由）：
+Agent 调用 `hyperspace_query` 工具：
 
-| 示例 prompt | 路由档位 | 花费 |
+| 示例 prompt | 路由引擎 | 花费 |
 |---|---|---|
-| "你好，今天天气不错" | `free_text` (智谱) | **¥0** |
-| [用户发了一张图] "描述这张图片" | `free_vision` (智谱) | **¥0** |
-| "请重构这个 def foo(): pass 并加注释" | `cheap_capable` (DeepSeek) | ~¥0.0004 |
-| mode=premium "关键代码安全性审查" | `premium` (预留) | 按 API 价 |
+| "帮我制定一个学习计划" | **DeepSeek Web** (原生客户端, 规划) | **¥0** |
+| [用户发了一张图] "描述这张图片" | **DeepSeek Web** (原生识图) | **¥0** |
+| "用 Python 写快速排序" | **DeepSeek API** (代码生成) | ~¥0.0004 |
+| "翻译这段文字成英文" | **DeepSeek API** (翻译) | ~¥0.0001 |
+| "你好，今天天气不错" | **DeepSeek Web** (简单问答) | **¥0** |
+| mode=force_zhipu "..." | **智谱 GLM-4.7-Flash** | **¥0** |
 
-每次调用返回末尾会附加成本元信息：
+每次调用返回末尾会附加引擎元信息：
 ```
 ---
-[hyperspace] ✓ zhipu/glm-4.7-flash (档位 free_text, tokens 12→114, 等效省 $0.0017)
+[hyperspace] 引擎: deepseek_web/deepseek-chat  规划: (思维链摘要)
 ```
 
 ---
@@ -111,58 +214,76 @@ Agent 调用 `hyperspace_query` 工具（单工具自动路由）：
 
 ```
 D:\Reasonix\HyperSpace\
-├── hyperspace/                    # 核心包
-│   ├── server.py                  # MCP 服务端（入口，单工具 hyperspace_query）
-│   ├── config.py                  # 配置加载（YAML + .env）
-│   ├── router.py                  # 路由判定（廉价规则）
-│   ├── executor.py                # 执行引擎（回退/升档）
-│   ├── cost.py                    # 成本追踪日志
-│   ├── tiers.py                   # Tier 枚举
-│   ├── providers/                 # API 调用层
-│   │   ├── base.py                # 协议 + 异常类型
-│   │   └── openai_compat.py       # OpenAI 兼容 client（服务全部厂商）
-│   └── experimental/              # ⚠ 个人实验，违 ToS，不接入 MCP
-│       └── web_vision.py          # DeepSeek 网页端识图（独立 CLI）
+├── hyperspace/                          # 核心包
+│   ├── server.py                        # MCP 服务端（双路径：混合引擎 + 旧路由）
+│   ├── config.py                        # 配置加载（YAML + .env）
+│   ├── router.py                        # 旧路由判定（保留兼容 legacy mode）
+│   ├── executor.py                      # 旧执行引擎（保留兼容 legacy mode）
+│   ├── cost.py                          # 成本追踪日志
+│   ├── tiers.py                         # Tier 枚举
+│   ├── hybrid_engine/                   # 🆕 混合推理引擎（核心创新）
+│   │   ├── __init__.py
+│   │   ├── task_analyzer.py             # 任务特征分析（关键词/正则）
+│   │   ├── health_checker.py            # 服务健康探测（凭据检查 + API 探测）
+│   │   ├── hybrid_router.py             # 核心路由决策（8 级优先级 + 降级链）
+│   │   ├── deepseek_web_client.py       # 🆕 DeepSeek Web 原生客户端（PoW + SSE 流）
+│   │   ├── web_auth.py                  # 🆕 浏览器凭据提取（Playwright CDP）
+│   │   ├── result_processor.py          # 结果后处理（思维链提取）
+│   │   └── fallback.py                  # 降级管理（指数退避重试）
+│   ├── providers/                       # API 调用层
+│   │   ├── base.py                      # 协议 + 异常类型
+│   │   └── openai_compat.py             # OpenAI 兼容 client
+│   └── experimental/                    # 个人实验（严格隔离）
 ├── config/
-│   ├── providers.yaml             # tier → provider 映射（配置驱动）
-│   └── routing.yaml               # 路由规则（复杂度关键词/阈值）
+│   ├── providers.yaml                   # tier → provider 映射
+│   ├── routing.yaml                     # 旧路由规则
+│   └── hybrid_config.yaml               # 🆕 混合引擎配置
 ├── data/
-│   └── hyperspace_cost.log        # 成本日志（gitignored）
+│   ├── hyperspace_cost.log              # 成本日志（gitignored）
+│   └── deepseek_web_auth.json           # 🆕 Web 凭据（gitignored）
 ├── tests/
-│   ├── test_router.py             # 路由规则 16 测
-│   └── test_providers.py          # Provider 异常 + 回退 9 测
+│   ├── test_router.py                   # 旧路由规则测试（16 用例）
+│   ├── test_providers.py                # Provider 异常 + 回退测试（9 用例）
+│   └── test_hybrid_engine.py            # 🆕 混合引擎测试（39 用例）
 ├── docs/
-│   └── architecture.md            # 详细架构文档
-├── .env                           # API Key（gitignored）
-├── .env.example                   # 模板
+│   └── architecture.md
 ├── pyproject.toml
 ├── README.md
-└── LICENSE                        # MIT
+└── LICENSE                              # MIT
 ```
 
 ---
 
 ## 路由规则详解
 
-`config/routing.yaml` 控制所有判定（零 token 成本）：
+### 混合引擎路由（auto 模式）
 
-```yaml
-complexity:
-  code_markers: ["```", "def ", "class ", "function "]
-  complex_keywords: ["重构", "实现", "调试", "分析", "refactor", "implement"]
-  length_threshold: 800
-escalation_chain:
-  - free_text      # 免费文本 → 免费识图 → 廉价 → premium
-  - free_vision
-  - cheap_capable
-  - premium
-```
+优先级从高到低：
 
-- **有图片** → 自动 `free_vision`（免费识图）
-- **含代码或复杂关键词或超长** → `cheap_capable`（编码/推理）
-- **否则** → `free_text`（默认免费）
-- **显式 mode=free_vision/cheap_capable/premium** → 强制指定档位
-- **当前档位全失败** → 按 `escalation_chain` 升档
+| 条件 | 路由到 | 理由 |
+|---|---|---|
+| 有图片 (`has_image`) | **DeepSeek Web** (原生 Python 客户端) | Web 端原生识图 |
+| 需要搜索 (`needs_search`) | **DeepSeek Web** | Web 端可联网搜索 |
+| 需要规划 (`needs_planning`) | **DeepSeek Web** | 长文本规划能力强 |
+| 长文本 (`is_long`, >5000 字符) | **DeepSeek Web** | 1M 上下文窗口 |
+| 代码生成 (`needs_coding`) | **DeepSeek API** | API 输出代码更稳定 |
+| 翻译 (`needs_translation`) | **DeepSeek API** | 标准化翻译 |
+| 结构化输出 (`needs_structured_output`) | **DeepSeek API** | 支持 JSON 模式 |
+| 默认（简单问答/闲聊） | **DeepSeek Web** | 经济优先 |
+
+### 显式模式覆盖
+
+| mode | 行为 |
+|---|---|
+| `auto` | 自动判定（默认） |
+| `force_web` | 强制使用 DeepSeek Web (原生客户端) |
+| `force_api` | 强制使用 DeepSeek API |
+| `force_zhipu` | 强制使用智谱 GLM 兜底 |
+| `free_text` / `free_vision` | 旧路由（向后兼容） |
+
+### 降级链
+
+`DeepSeek Web → DeepSeek API → 智谱 GLM → 友好错误提示`
 
 ---
 
@@ -177,47 +298,51 @@ escalation_chain:
  "actual_cost_usd":5e-06,"equivalent_premium_usd":6e-05,"saved_usd":5.5e-05}
 ```
 
-可用命令查看摘要（示例）：
+可用命令查看摘要：
 ```bash
-python -c "
-import json
-with open('data/hyperspace_cost.log') as f:
-    entries = [json.loads(l) for l in f if l.strip()]
-total_saved = sum(e['saved_usd'] for e in entries)
-free_pct = sum(1 for e in entries if e['actual_tier'].startswith('free')) / len(entries) * 100 if entries else 0
-print(f'总请求: {len(entries)}, 免费档占比: {free_pct:.0f}%, 等效节省: \${total_saved:.4f}')
-"
+python -m hyperspace.summary
 ```
 
-> **诚实口径**: 节省比例因使用模式而异。项目不预设固定 "省 90%" 的宣传数字，以实测数据说话。参考范围：70-95% 请求可落在免费档。
+> **诚实口径**: 节省比例因使用模式而异。项目不预设固定 "省 90%" 的宣传数字，以实测数据说话。
 
 ---
 
-## EXPERIMENTAL 模块说明
+## DeepSeek Web 原生客户端
 
-`hyperspace/experimental/` 目录包含个人浏览器自动化实验（Playwright 操控 DeepSeek 网页），**严格隔离**：
+`hyperspace/hybrid_engine/deepseek_web_client.py` 是我们独立实现的 DeepSeek Web 内部 API 客户端：
 
-- ⚠ **不接入 MCP 服务**（`server.py` 无引用）
-- ⚠ **不写入 `.mcp.json`**
-- ⚠ **违反厂商 ToS**（DeepSeek 3.5(3)），封号风险自负
-- ⚠ **不纳入公开 release**
+- **PoW 求解**: SHA256 前导零位 PoW，自实现零外部依赖
+- **流式对话**: SSE 流解析，支持 streaming 实时返回
+- **思维链提取**: 自动分离 reasoning_content 和 text
+- **文件上传**: 支持图片上传 + 轮询状态确认
+- **会话管理**: 自动创建/复用 chat_session
 
-使用:
+### 凭据管理
+
+`hyperspace/hybrid_engine/web_auth.py` 通过 Playwright CDP 连接 Chrome：
+
 ```bash
-pip install playwright
-python -m playwright install chromium
-python -m hyperspace.experimental.web_vision --image path/to/photo.jpg --prompt "描述这张图"
+# 提取 DeepSeek 登录凭据
+# 先在调试模式启动 Chrome:
+chrome.exe --remote-debugging-port=9222
+# 登录 chat.deepseek.com 后运行:
+python -m hyperspace.hybrid_engine.web_auth --extract
+
+# 查看凭据状态:
+python -m hyperspace.hybrid_engine.web_auth --status
 ```
+
+凭据保存到 `data/deepseek_web_auth.json`，含 Cookie + Bearer Token + User-Agent。
 
 ---
 
 ## 开发
 
 ```bash
-# 运行测试
+# 运行全部测试
 pytest tests/ -v
 
-# 全部通过 (25/25)
+# 全部通过 (64/64: 25 旧 + 39 新混合引擎)
 ```
 
 ---

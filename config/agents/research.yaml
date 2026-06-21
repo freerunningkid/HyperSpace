@@ -1,0 +1,15 @@
+name: research
+description: >
+  网络研究专用 agent。搜索技术方案、查文档、调研最佳实践，返回摘要。
+tools:
+  - WebSearch
+  - WebFetch
+  - Read
+  - Grep
+disallowedTools:
+  - Edit
+  - Write
+  - Bash
+  - NotebookEdit
+model: haiku
+permissionMode: plan

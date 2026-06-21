@@ -1,6 +1,6 @@
-import sqlite3, json, time, uuid
+import sqlite3, json, time, uuid, os
 
-db = sqlite3.connect('C:\\Users\\KID\\.zcode\\cli\\db\\db.sqlite')
+db = sqlite3.connect(os.path.expanduser('~\\.zcode\\cli\\db\\db.sqlite'))
 session_id = 'sess_1523ad43-912a-483c-85ce-e3b7b8fdf06e'
 parent_id = None
 
