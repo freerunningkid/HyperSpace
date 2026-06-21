@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from .base import ProviderError, ProviderResponse, ProviderTimeout, RateLimitError, TransientError
+from .base import AuthError, ProviderError, ProviderResponse, ProviderTimeout, RateLimitError, TransientError
 from .openai_compat import OpenAICompatProvider
 
 __all__ = [
+    "AuthError",
     "OpenAICompatProvider",
     "ProviderResponse",
     "ProviderError",
