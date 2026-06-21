@@ -48,6 +48,20 @@ def load_saved_auth() -> dict | None:
         return None
 
 
+def _cookie_str(cookies: list) -> str:
+    """将 cookies 列表转为 header 字符串 (兼容 Python 3.10)."""
+    parts = []
+    for c in cookies:
+        if isinstance(c, dict):
+            name = c.get("name", "")
+            value = c.get("value", "")
+        else:
+            name = c.name
+            value = c.value
+        parts.append(f"{name}={value}")
+    return "; ".join(parts)
+
+
 def save_auth(auth: dict) -> None:
     """保存凭据到 data/deepseek_web_auth.json."""
     path = _get_auth_path()
@@ -152,7 +166,7 @@ async def extract_from_browser(
             "https://chat.deepseek.com",
             "https://deepseek.com",
         ])
-        cookie_str = "; ".join(f"{c["name"] if isinstance(c, dict) else c.name}={c["value"] if isinstance(c, dict) else c.value}" for c in existing_cookies) if existing_cookies else ""
+        cookie_str = _cookie_str(existing_cookies) if existing_cookies else ""
         has_session = (
             "d_id=" in cookie_str
         ) and len(cookie_str) > 10
@@ -261,7 +275,7 @@ async def extract_from_browser(
                     "https://chat.deepseek.com",
                     "https://deepseek.com",
                 ])
-                cs = "; ".join(f"{c["name"] if isinstance(c, dict) else c.name}={c["value"] if isinstance(c, dict) else c.value}" for c in cookies) if cookies else ""
+                cs = _cookie_str(cookies) if cookies else ""
                 if (captured_bearer or has_session) and cs and ("d_id=" in cs or "ds_session_id=" in cs):
                     resolved.set()
 
@@ -279,7 +293,7 @@ async def extract_from_browser(
             "https://chat.deepseek.com",
             "https://deepseek.com",
         ])
-        final_cookie_str = "; ".join(f"{c["name"] if isinstance(c, dict) else c.name}={c["value"] if isinstance(c, dict) else c.value}" for c in final_cookies) if final_cookies else ""
+        final_cookie_str = _cookie_str(final_cookies) if final_cookies else ""
         final_bearer = captured_bearer[0] if captured_bearer else bearer
 
         return {
