@@ -407,7 +407,7 @@ providers:
     type: placeholder_web
     class: hyperspace.providers.chatglm_web.ChatGLMWebPlaceholderProvider
     enabled: true
-    fallback_to: zhipu_api
+    fallback_to: agnes_text
     cost_tier: free
     capabilities:
       text: true
@@ -591,7 +591,7 @@ AGNES_API_KEY
 ```text
 id: chatglm_web
 type: placeholder_web
-fallback_to: zhipu_api
+fallback_to: agnes_text
 ```
 
 当用户显式选择：
@@ -602,7 +602,7 @@ fallback_to: zhipu_api
 }
 ```
 
-如果 `zhipu_api` 可用，则调用 `zhipu_api`，并返回：
+如果 `agnes_text` 可用，则调用 `agnes_text`，并返回：
 
 ```json
 {
@@ -611,12 +611,12 @@ fallback_to: zhipu_api
 }
 ```
 
-如果 `zhipu_api` 不可用，则返回：
+如果 `agnes_text` 不可用，则返回：
 
 ```text
 ProviderUnavailable:
 ChatGLM Web provider is registered but web automation is not implemented,
-and configured fallback provider zhipu_api is unavailable.
+and configured fallback provider agnes_text is unavailable.
 ```
 
 ### 9.3 QwenChatWebPlaceholderProvider
@@ -862,8 +862,8 @@ Router 默认不选它们，但 health 工具应该能看到它们。
 ```text
 用户选择 chatglm_web
   → 检测到 web_automation_not_implemented
-  → fallback_to = zhipu_api
-  → 调用 zhipu_api
+  → fallback_to = agnes_text
+  → 调用 agnes_text
   → 返回 metadata.fallback_used = true
 ```
 
@@ -873,7 +873,7 @@ Router 默认不选它们，但 health 工具应该能看到它们。
 
 ```json
 {
-  "provider": "zhipu_api",
+  "provider": "agnes_text",
   "requested_provider": "chatglm_web",
   "fallback_used": true,
   "fallback_reason": "chatglm_web_automation_not_implemented"
@@ -1000,7 +1000,7 @@ hyperspace_query
         "text": true,
         "planning": true
       },
-      "fallback_to": "zhipu_api",
+      "fallback_to": "agnes_text",
       "last_error": "web_automation_not_implemented"
     }
   }
@@ -1335,7 +1335,7 @@ README.md
 
 验证：
 
-1. `chatglm_web` fallback 到 `zhipu_api`。
+1. `chatglm_web` fallback 到 `agnes_text`。
 2. `qwen_chat_web` fallback 到 `qwen_api`。
 3. fallback metadata 正确。
 4. fallback API 不可用时返回明确错误。
@@ -1419,7 +1419,7 @@ README.md
 3. `hyperspace_query(provider="siliconflow_nex_n2_pro")` 可以调用 SiliconFlow Nex-N2-Pro。
 4. `hyperspace_query(provider="agnes_text")` 可以调用 Agnes 文本模型。
 5. `hyperspace_query(provider="agnes_image")` 可以按 capability 参与图片任务路由。
-6. `hyperspace_query(provider="chatglm_web")` 可以 fallback 到 Zhipu API。
+6. `hyperspace_query(provider="chatglm_web")` 可以 fallback 到 Agnes 文本模型。
 7. `hyperspace_query(provider="qwen_chat_web")` 可以 fallback 到 Qwen API。
 8. `hyperspace_health` 可以列出所有 provider 状态。
 9. `HybridRouter` 不再直接 import `DeepSeekWebClient`。
