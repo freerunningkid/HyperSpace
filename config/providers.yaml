@@ -1,22 +1,149 @@
-# HyperSpace Provider 注册表 —— tier → 有序候选 provider 列表
-# Router 只选 tier, 具体 provider/model 在此配置; 厂商改价/改名时改这里, 不动代码
-# 每条候选: { provider, base_url, model, key_env (读取的环境变量名) }
-# 执行时同 tier 候选依次尝试, 失败(限流/网络/鉴权)则跳下一候选, 全失败则升一档
+# HyperSpace 多 Provider 注册表 v2.0
+# 所有 API Key 通过环境变量读取，不在此文件中写入任何真实密钥
+# 参考 .env.example 了解需要配置哪些环境变量
 
-free_text:
-  # 免费文本档: GLM-4.7-Flash (智谱, 免费, 200K)
-  - { provider: zhipu, base_url: "https://open.bigmodel.cn/api/paas/v4/", model: "glm-4.7-flash", key_env: "ZHIPU_API_KEY" }
+providers:
 
-free_vision:
-  # 免费识图档: GLM-4.6V-Flash (智谱, 免费图像理解)
-  - { provider: zhipu, base_url: "https://open.bigmodel.cn/api/paas/v4/", model: "glm-4.6v-flash", key_env: "ZHIPU_API_KEY" }
+  # ═══════════════════════════════════════════════════════════════
+  # Web Provider（原生网页端）
+  # ═══════════════════════════════════════════════════════════════
 
-cheap_capable:
-  # 廉价能力档: 复杂推理/编码, 非免费但极便宜
-  - { provider: deepseek, base_url: "https://api.deepseek.com", model: "deepseek-chat", key_env: "DEEPSEEK_API_KEY" }
-  # 长上下文备选
-  - { provider: kimi, base_url: "https://api.moonshot.cn/v1", model: "moonshot-v1-32k", key_env: "MOONSHOT_API_KEY" }
+  deepseek_web:
+    type: web
+    enabled: true
+    cost_tier: free
+    fallback_to: deepseek_api
+    capabilities:
+      text: true
+      vision_understanding: true
+      file_upload: true
+      web_search: true
+      streaming: true
+      structured_output: false
+      planning: true
+      long_context: true
 
-premium:
-  # 高精度档 (可选, 仅留配置位; key 未配置时自动跳过)
-  - { provider: openrouter, base_url: "https://openrouter.ai/api/v1", model: "anthropic/claude-3.5-sonnet", key_env: "OPENROUTER_API_KEY" }
+  # ═══════════════════════════════════════════════════════════════
+  # API Provider（OpenAI 兼容端点）
+  # ═══════════════════════════════════════════════════════════════
+
+  deepseek_api:
+    type: api
+    provider_name: deepseek
+    base_url: https://api.deepseek.com
+    model: deepseek-chat
+    key_env: DEEPSEEK_API_KEY
+    cost_tier: low_cost
+    fallback_to: zhipu_api
+    capabilities:
+      text: true
+      streaming: true
+      structured_output: true
+      planning: true
+      long_context: true
+
+  zhipu_api:
+    type: api
+    provider_name: zhipu
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    model: glm-4.7-flash
+    key_env: ZHIPU_API_KEY
+    cost_tier: free
+    capabilities:
+      text: true
+      streaming: true
+      structured_output: true
+      planning: true
+
+  qwen_api:
+    type: api
+    provider_name: qwen
+    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-plus
+    key_env: QWEN_API_KEY
+    cost_tier: low_cost
+    capabilities:
+      text: true
+      vision_understanding: true
+      streaming: true
+      structured_output: true
+      planning: true
+
+  siliconflow_nex_n2_pro:
+    type: api
+    provider_name: siliconflow
+    base_url: https://api.siliconflow.cn/v1
+    model: nex-agi/Nex-N2-Pro
+    key_env: SILICONFLOW_API_KEY
+    cost_tier: free
+    capabilities:
+      text: true
+      streaming: true
+      structured_output: true
+      planning: true
+
+  agnes_text:
+    type: api
+    provider_name: agnes
+    base_url: https://apihub.agnes-ai.com/v1
+    model: agnes-2.0-flash
+    key_env: AGNES_API_KEY
+    cost_tier: free
+    capabilities:
+      text: true
+      streaming: true
+      structured_output: true
+      planning: true
+
+  agnes_image:
+    type: api
+    provider_name: agnes
+    base_url: https://apihub.agnes-ai.com/v1
+    model: agnes-image-2.1-flash
+    key_env: AGNES_API_KEY
+    cost_tier: free
+    capabilities:
+      text: true
+      vision_understanding: true
+      image_generation: true
+      streaming: false
+      structured_output: true
+      planning: false
+
+  agnes_video:
+    type: api
+    provider_name: agnes
+    base_url: https://apihub.agnes-ai.com/v1
+    model: agnes-video-v2.0
+    key_env: AGNES_API_KEY
+    cost_tier: free
+    capabilities:
+      video_understanding: true
+      video_generation: true
+      streaming: false
+      structured_output: false
+      planning: false
+
+  # ═══════════════════════════════════════════════════════════════
+  # Placeholder Web Provider（占位，Web 自动化未实现）
+  # ═══════════════════════════════════════════════════════════════
+
+  chatglm_web:
+    type: placeholder_web
+    enabled: true
+    fallback_to: agnes_text
+    cost_tier: free
+    capabilities:
+      text: true
+      planning: true
+      long_context: true
+
+  qwen_chat_web:
+    type: placeholder_web
+    enabled: true
+    fallback_to: qwen_api
+    cost_tier: free
+    capabilities:
+      text: true
+      planning: true
+      long_context: true

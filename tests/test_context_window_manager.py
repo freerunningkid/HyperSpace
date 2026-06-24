@@ -211,6 +211,41 @@ class TestFirstMessage:
         assert call_kwargs["thinking_enabled"] is True
 
     @pytest.mark.asyncio
+    async def test_quick_mode_disables_thinking(self):
+        """Quick 模式关闭 thinking_enabled."""
+        web = _make_web_client()
+        web.create_chat_session = AsyncMock(return_value="s_quick")
+        web.chat_completion = AsyncMock(return_value=_make_response())
+
+        mgr = ContextWindowManager(web)
+        await mgr.chat(session_key="u1", prompt="简单回答", web_mode="quick")
+
+        call_kwargs = web.chat_completion.call_args.kwargs
+        assert call_kwargs["thinking_enabled"] is False
+
+    @pytest.mark.asyncio
+    async def test_vision_mode_uploads_images_as_ref_file_ids(self):
+        """Vision 模式上传图片时传给 chat_completion 的是 ref_file_ids，而不是 images."""
+        web = _make_web_client()
+        web.create_chat_session = AsyncMock(return_value="s_vision")
+        web.prepare_ref_file_ids = AsyncMock(return_value=["file_123"])
+        web.chat_completion = AsyncMock(return_value=_make_response())
+
+        mgr = ContextWindowManager(web)
+        await mgr.chat(
+            session_key="u1",
+            prompt="这张截图有什么 bug",
+            images=["screenshot.png"],
+            web_mode="vision",
+        )
+
+        web.prepare_ref_file_ids.assert_awaited_once_with(["screenshot.png"])
+        call_kwargs = web.chat_completion.call_args.kwargs
+        assert call_kwargs["ref_file_ids"] == ["file_123"]
+        assert "images" not in call_kwargs
+        assert call_kwargs["thinking_enabled"] is True
+
+    @pytest.mark.asyncio
     async def test_first_message_passes_search_enabled(self):
         """首次对话时传递 search_enabled 参数."""
         web = _make_web_client()

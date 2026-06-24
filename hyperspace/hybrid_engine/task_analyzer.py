@@ -21,13 +21,16 @@ class TaskProfile:
     needs_translation: bool = False      # 需要翻译
     needs_structured_output: bool = False  # 需要 JSON/表格
     has_image: bool = False              # 包含图片
+    has_file: bool = False               # 包含图片/文件/上传意图
+    suggested_web_mode: str = "auto"    # quick / expert / vision / auto
+    explicit_web_mode: str | None = None
 
     def __bool__(self) -> bool:
         """至少一个特征为 True."""
         return any((
             self.is_long, self.needs_search, self.needs_planning,
             self.needs_coding, self.needs_translation,
-            self.needs_structured_output, self.has_image,
+            self.needs_structured_output, self.has_image, self.has_file,
         ))
 
     @property
@@ -36,7 +39,7 @@ class TaskProfile:
         return sum(map(int, (
             self.is_long, self.needs_search, self.needs_planning,
             self.needs_coding, self.needs_translation,
-            self.needs_structured_output, self.has_image,
+            self.needs_structured_output, self.has_image, self.has_file,
         )))
 
 
@@ -142,6 +145,20 @@ _STRUCTURED_PATTERNS = [
     r"整理成", r"按格式",
 ]
 
+# 显式 DeepSeek Web 模式
+_EXPLICIT_WEB_MODE_PATTERNS = [
+    (r"快速模式|快速回答|简单回答|短回答|别思考|不要思考", "quick"),
+    (r"专家模式|深度分析|认真推理|仔细推理|慢慢想|多思考", "expert"),
+    (r"识图模式|看图|看截图|截图模式", "vision"),
+]
+
+# 文件/上传意图
+_FILE_PATTERNS = [
+    r"上传", r"附件", r"文件", r"文档", r"截图", r"图片",
+    r"PDF", r"Word", r"Excel", r"PPT",
+    r"\.(pdf|docx?|xlsx?|pptx?|txt|md|py|js|ts|java|c|cpp|go|rs|json|yaml|yml|csv)\b",
+]
+
 # 长度阈值
 _LONG_THRESHOLD = 5000
 
@@ -174,8 +191,54 @@ def analyze_task(
     profile.needs_coding = _any_match(_CODE_PATTERNS, body, low)
     profile.needs_translation = _any_match(_TRANSLATION_PATTERNS, body, low)
     profile.needs_structured_output = _any_match(_STRUCTURED_PATTERNS, body, low)
+    profile.has_file = profile.has_image or _any_match(_FILE_PATTERNS, body, low)
+    profile.explicit_web_mode = _detect_explicit_web_mode(body, low)
+    profile.suggested_web_mode = _suggest_web_mode(profile, prompt)
 
     return profile
+
+
+def _detect_explicit_web_mode(body: str, low: str) -> str | None:
+    """识别用户显式要求的 DeepSeek Web 模式."""
+    for pattern, mode in _EXPLICIT_WEB_MODE_PATTERNS:
+        if _any_match([pattern], body, low):
+            return mode
+    return None
+
+
+def _suggest_web_mode(profile: TaskProfile, prompt: str = "") -> str:
+    """根据任务画像推荐 DeepSeek Web 产品模式."""
+    if profile.explicit_web_mode:
+        return profile.explicit_web_mode
+    if profile.has_image or profile.has_file:
+        return "vision"
+    if profile.needs_search:
+        # 搜索任务: 复杂搜索(多特征/规划意图/分析词) → expert, 简单搜索 → quick
+        is_complex_search = (
+            profile.complexity_score >= 2
+            or profile.needs_planning
+            or _contains_analysis_intent(prompt)
+        )
+        return "expert" if is_complex_search else "quick"
+    if profile.needs_planning or profile.is_long or profile.needs_coding:
+        return "expert"
+    if profile.needs_translation or profile.needs_structured_output:
+        return "quick"
+    return "quick"
+
+
+_ANALYSIS_PATTERNS = [
+    r"分析", r"评估", r"解读", r"报告", r"综述", r"总结", r"归纳",
+    r"比较", r"对比", r"评价", r"研究",
+    r"analyze", r"evaluate", r"report", r"review",
+    r"trend", r"trends", r"insight", r"insights",
+]
+
+
+def _contains_analysis_intent(prompt: str) -> bool:
+    """检测 prompt 是否包含分析/报告/深度解读意图."""
+    low = prompt.lower()
+    return _any_match(_ANALYSIS_PATTERNS, prompt, low)
 
 
 def _any_match(

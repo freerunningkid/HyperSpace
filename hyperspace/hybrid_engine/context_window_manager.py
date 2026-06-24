@@ -76,6 +76,17 @@ def _estimate_tokens(text: str) -> int:
     return max(1, int(len(text) * TOKEN_EST_RATIO))
 
 
+def _resolve_thinking_enabled(web_mode: str, thinking_enabled: bool | None) -> bool:
+    """根据 DeepSeek Web 模式解析 thinking_enabled."""
+    if thinking_enabled is not None:
+        return thinking_enabled
+    if web_mode == "quick":
+        return False
+    if web_mode in {"expert", "vision"}:
+        return True
+    return True
+
+
 # ── 上下文窗口管理器 ──
 
 class ContextWindowManager:
@@ -110,6 +121,8 @@ class ContextWindowManager:
         prompt: str,
         images: list[str] | None = None,
         search_enabled: bool = True,
+        web_mode: str = "auto",
+        thinking_enabled: bool | None = None,
     ) -> DeepSeekWebResponse:
         """发送消息, 自动管理上下文窗口.
 
@@ -117,19 +130,26 @@ class ContextWindowManager:
                       传空字符串 "" 表示每次新建 (无状态模式).
         """
         async with self._lock:
+            resolved_thinking = _resolve_thinking_enabled(web_mode, thinking_enabled)
+            ref_file_ids = await self._prepare_ref_file_ids(images)
+
             # 无状态模式: 每次都新建 session
             if not session_key:
-                return await self._new_session_chat("", prompt, images, search_enabled)
+                return await self._new_session_chat(
+                    "", prompt, ref_file_ids, search_enabled, web_mode, resolved_thinking
+                )
 
             state = self._sessions.get(session_key)
             if state is None:
-                return await self._first_message(session_key, prompt, images, search_enabled)
+                return await self._first_message(
+                    session_key, prompt, ref_file_ids, search_enabled, web_mode, resolved_thinking
+                )
 
             # 检查是否需要压缩
             if self._should_compress(state, prompt):
                 logger.info(f"[ctx-window] 上下文窗口接近满 ({state.estimated_tokens}/{state.context_limit}), 触发压缩")
                 return await self._compress_and_restart(
-                    session_key, prompt, images, search_enabled
+                    session_key, prompt, ref_file_ids, search_enabled, web_mode, resolved_thinking
                 )
 
             # 正常对话
@@ -138,8 +158,9 @@ class ContextWindowManager:
                     prompt=prompt,
                     session_id=state.session_id,
                     parent_message_id=state.last_message_id or None,
+                    ref_file_ids=ref_file_ids or None,
                     search_enabled=search_enabled,
-                    thinking_enabled=True,
+                    thinking_enabled=resolved_thinking,
                 )
                 self._update_state(state, prompt, resp.text, resp.message_id)
                 state.consecutive_failures = 0
@@ -158,7 +179,7 @@ class ContextWindowManager:
 
                 # 尝试压缩 + 新 session
                 return await self._compress_and_restart(
-                    session_key, prompt, images, search_enabled
+                    session_key, prompt, ref_file_ids, search_enabled, web_mode, resolved_thinking
                 )
 
     # ── 内部方法 ──
@@ -167,8 +188,10 @@ class ContextWindowManager:
         self,
         session_key: str,
         prompt: str,
-        images: list[str] | None,
+        ref_file_ids: list[str],
         search_enabled: bool,
+        web_mode: str,
+        thinking_enabled: bool,
     ) -> DeepSeekWebResponse:
         """首次消息: 创建新 session 并发送."""
         # 如果有 summary 需要注入
@@ -178,23 +201,26 @@ class ContextWindowManager:
             full_prompt = f"[上下文摘要] 之前对话的关键信息：{state.summary}\n\n当前问题：{prompt}"
 
         return await self._new_session_chat(
-            session_key, full_prompt, images, search_enabled
+            session_key, full_prompt, ref_file_ids, search_enabled, web_mode, thinking_enabled
         )
 
     async def _new_session_chat(
         self,
         session_key: str,
         prompt: str,
-        images: list[str] | None,
+        ref_file_ids: list[str],
         search_enabled: bool,
+        web_mode: str,
+        thinking_enabled: bool,
     ) -> DeepSeekWebResponse:
         """创建新 session 并发送消息."""
         session_id = await self._web.create_chat_session()
         resp = await self._web.chat_completion(
             prompt=prompt,
             session_id=session_id,
+            ref_file_ids=ref_file_ids or None,
             search_enabled=search_enabled,
-            thinking_enabled=True,
+            thinking_enabled=thinking_enabled,
         )
 
         # 更新状态
@@ -217,6 +243,16 @@ class ContextWindowManager:
 
         return resp
 
+    async def _prepare_ref_file_ids(self, images: list[str] | None) -> list[str]:
+        """把图片/文件引用转换为 DeepSeek Web ref_file_ids."""
+        if not images:
+            return []
+
+        prepare_fn = getattr(self._web, "prepare_ref_file_ids", None)
+        if prepare_fn:
+            return await prepare_fn(images)
+        return []
+
     def _should_compress(self, state: SessionState, new_prompt: str) -> bool:
         """检查是否应该触发压缩."""
         new_estimate = state.estimated_tokens + _estimate_tokens(new_prompt)
@@ -227,8 +263,10 @@ class ContextWindowManager:
         self,
         session_key: str,
         prompt: str,
-        images: list[str] | None,
+        ref_file_ids: list[str],
         search_enabled: bool,
+        web_mode: str,
+        thinking_enabled: bool,
     ) -> DeepSeekWebResponse:
         """压缩历史 → 创建新 session → 注入摘要 → 发送."""
         state = self._sessions.get(session_key)
@@ -266,9 +304,9 @@ class ContextWindowManager:
         resp = await self._web.chat_completion(
             prompt=prompt,
             session_id=new_session_id,
-            images=images,
+            ref_file_ids=ref_file_ids or None,
             search_enabled=search_enabled,
-            thinking_enabled=True,
+            thinking_enabled=thinking_enabled,
         )
 
         # 更新状态

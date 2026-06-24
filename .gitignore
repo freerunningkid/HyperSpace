@@ -6,6 +6,9 @@
 data/*.log
 data/*.json
 
+# 日志文件
+*.log
+
 # 个人实验模块本地产物 (严格隔离)
 hyperspace/experimental/*.json
 hyperspace/experimental/data/
@@ -27,3 +30,8 @@ Thumbs.db
 # MCP 本地配置文件 (含绝对路径, 不应入库)
 .mcp.json
 .vscode/mcp.json
+
+# Claude 本地环境
+.claude/settings.local.json
+.claude/worktrees/
+.claude/worktree-lock*

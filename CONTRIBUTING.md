@@ -14,7 +14,7 @@ cp .env.example .env   # 编辑填入你的 API Key
 ## 运行测试
 
 ```bash
-pytest tests/ -v        # 202 个单元测试, 零网络依赖
+pytest tests/ -v        # 225 个单元测试, 零网络依赖
 ```
 
 ## 代码规范

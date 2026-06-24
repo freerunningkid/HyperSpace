@@ -46,6 +46,28 @@ class TestTaskAnalyzer:
         p = analyze_task("what is this?", images=["photo.jpg"])
         assert p.has_image
 
+    def test_image_suggests_vision_mode(self):
+        p = analyze_task("这张截图里的代码有什么 bug", images=["screenshot.png"])
+        assert p.suggested_web_mode == "vision"
+
+    def test_simple_question_suggests_quick_mode(self):
+        p = analyze_task("你好，介绍一下你自己", images=None)
+        assert p.suggested_web_mode == "quick"
+
+    def test_explicit_expert_mode_suggests_expert(self):
+        p = analyze_task("用专家模式帮我解这道数学题", images=None)
+        assert p.suggested_web_mode == "expert"
+
+    def test_search_news_suggests_quick_with_search(self):
+        p = analyze_task("搜索一下今天的 AI 新闻", images=None)
+        assert p.needs_search
+        assert p.suggested_web_mode == "quick"
+
+    def test_complex_search_suggests_expert_with_search(self):
+        p = analyze_task("分析最近 AI 技术趋势并给出报告", images=None)
+        assert p.needs_search
+        assert p.suggested_web_mode == "expert"
+
     def test_long_text_detection(self):
         p = analyze_task("x" * 6000, images=None)
         assert p.is_long
@@ -133,6 +155,56 @@ class TestHybridRouter:
     def test_force_web(self):
         d = self.router._route(TaskProfile(), "force_web")
         assert d.executor == "deepseek_web"
+
+    def test_force_web_quick_disables_thinking(self):
+        d = self.router._route(TaskProfile(), "force_web", web_mode="quick")
+        assert d.executor == "deepseek_web"
+        assert d.web_mode == "quick"
+        assert d.thinking_enabled is False
+
+    def test_expert_mode_enables_thinking(self):
+        p = analyze_task("用专家模式帮我解这道题", images=None)
+        d = self.router._route(p, "auto")
+        assert d.web_mode == "expert"
+        assert d.thinking_enabled is True
+
+    def test_search_news_uses_quick_with_search(self):
+        p = analyze_task("搜索一下今天的 AI 新闻", images=None)
+        d = self.router._route(p, "auto")
+        assert d.executor == "deepseek_web"
+        assert d.web_mode == "quick"
+        assert d.search_enabled is True
+
+    @pytest.mark.asyncio
+    async def test_call_with_fallback_passes_web_mode_parameters(self):
+        call_log = []
+
+        async def fake_web(**kwargs):
+            call_log.append(kwargs)
+            return ("ok", "deepseek-chat")
+
+        self.router._build_executor_map = MagicMock(return_value={"deepseek_web": fake_web})
+        decision = RoutingDecision(
+            executor="deepseek_web",
+            web_mode="quick",
+            search_enabled=False,
+            thinking_enabled=False,
+        )
+        health = MagicMock()
+
+        result = await self.router._call_with_fallback(
+            decision=decision,
+            health=health,
+            prompt="简单回答",
+            images=None,
+            context=None,
+            session_key="s1",
+        )
+
+        assert result.answer == "ok"
+        assert call_log[0]["web_mode"] == "quick"
+        assert call_log[0]["search_enabled"] is False
+        assert call_log[0]["thinking_enabled"] is False
 
     def test_force_api(self):
         d = self.router._route(TaskProfile(), "force_api")

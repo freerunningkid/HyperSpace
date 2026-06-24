@@ -1,16 +1,47 @@
-"""Provider 层 —— 统一接口, 内部全用 OpenAI 兼容协议调用."""
+"""Provider 层公共导出。"""
 
-from __future__ import annotations
-
-from .base import AuthError, ProviderError, ProviderResponse, ProviderTimeout, RateLimitError, TransientError
-from .openai_compat import OpenAICompatProvider
+from .base import (
+    AuthError,
+    BaseProvider,
+    CostTier,
+    FileUploadError,
+    ProviderCapabilities,
+    ProviderError,
+    ProviderHealth,
+    ProviderNotImplemented,
+    ProviderRequest,
+    ProviderResponse,
+    ProviderStatus,
+    ProviderTimeout,
+    ProviderType,
+    ProviderUnavailable,
+    RateLimitError,
+    StructuredOutputError,
+    TransientError,
+    UpstreamError,
+    ValidationError,
+)
+from .openai_compat import OpenAICompatProvider  # noqa: F401 — 保留旧导出兼容
 
 __all__ = [
     "AuthError",
+    "BaseProvider",
+    "CostTier",
+    "FileUploadError",
     "OpenAICompatProvider",
-    "ProviderResponse",
+    "ProviderCapabilities",
     "ProviderError",
-    "RateLimitError",
-    "TransientError",
+    "ProviderHealth",
+    "ProviderNotImplemented",
+    "ProviderRequest",
+    "ProviderResponse",
+    "ProviderStatus",
     "ProviderTimeout",
+    "ProviderType",
+    "ProviderUnavailable",
+    "RateLimitError",
+    "StructuredOutputError",
+    "TransientError",
+    "UpstreamError",
+    "ValidationError",
 ]

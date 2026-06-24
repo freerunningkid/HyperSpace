@@ -14,13 +14,16 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
+import mimetypes
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
+from urllib.parse import unquote, urlparse
 
 import httpx
 
@@ -626,6 +629,68 @@ class DeepSeekWebClient:
         # 超时返回 (可能成功, 但不确定)
         return file_id
 
+    async def prepare_ref_file_ids(self, files: list[str] | None) -> list[str]:
+        """上传本地/URL/data URI 文件, 返回 DeepSeek Web ref_file_ids."""
+        if not files:
+            return []
+
+        ref_file_ids: list[str] = []
+        for item in files:
+            try:
+                file_data, file_name, content_type = await self._load_file_item(item)
+                file_id = await self.upload_file(file_data, file_name, content_type)
+                ref_file_ids.append(file_id)
+            except Exception as e:
+                logger.warning(f"DeepSeek Web 文件准备失败: {item[:80]} — {e}")
+        return ref_file_ids
+
+    async def _load_file_item(self, item: str) -> tuple[bytes, str, str]:
+        """加载本地路径、URL 或 data URI 文件."""
+        if item.startswith("data:"):
+            return self._load_data_uri(item)
+        if item.startswith(("http://", "https://")):
+            return await self._download_url_file(item)
+
+        path = Path(item)
+        if not path.exists():
+            raise FileNotFoundError(f"文件不存在: {item}")
+        if not path.is_file():
+            raise RuntimeError(f"不是文件: {item}")
+        data = path.read_bytes()
+        return data, path.name, self._guess_content_type(path.name, data)
+
+    async def _download_url_file(self, url: str) -> tuple[bytes, str, str]:
+        """下载 URL 文件."""
+        parsed = urlparse(url)
+        file_name = Path(unquote(parsed.path)).name or "download"
+        resp = await self._http.get(url)
+        if resp.status_code != 200:
+            raise RuntimeError(f"URL 下载失败 (HTTP {resp.status_code}): {url}")
+        data = resp.content
+        return data, file_name, resp.headers.get("content-type") or self._guess_content_type(file_name, data)
+
+    def _load_data_uri(self, data_uri: str) -> tuple[bytes, str, str]:
+        """解析 data URI."""
+        header, encoded = data_uri.split(",", 1)
+        meta = header.split(";", 1)[0].split(":", 1)[1]
+        content_type = meta.split(";", 1)[0] or "application/octet-stream"
+        extension = mimetypes.guess_extension(content_type) or ".bin"
+        raw = base64.b64decode(encoded)
+        return raw, f"upload{extension}", content_type
+
+    def _guess_content_type(self, file_name: str, data: bytes) -> str:
+        """根据文件名和文件头猜测 MIME 类型."""
+        guessed = mimetypes.guess_type(file_name)[0]
+        if guessed:
+            return guessed
+        if data.startswith(b"%PDF"):
+            return "application/pdf"
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        if data.startswith((b"\xff\xd8", b"\xff\xd9")):
+            return "image/jpeg"
+        return "application/octet-stream"
+
     # ── 便捷方法 ──
 
     async def chat(
@@ -633,31 +698,17 @@ class DeepSeekWebClient:
         prompt: str,
         images: list[str] | None = None,
         search_enabled: bool = True,
+        web_mode: str = "auto",
     ) -> DeepSeekWebResponse:
         """便捷 Chat 方法: 流式对话 (逐句拼接)."""
-        # 上传图片 (如有)
-        ref_file_ids: list[str] = []
-        if images:
-            for img in images:
-                if img.startswith(("http://", "https://", "data:")):
-                    # URL/data URL 类型 — 暂时不支持, 需要先下载
-                    logger.warning(f"DeepSeek Web 暂不支持 URL 图片: {img[:60]}")
-                    continue
-                # 本地文件
-                img_path = Path(img)
-                if img_path.exists():
-                    file_data = img_path.read_bytes()
-                    file_id = await self.upload_file(file_data, img_path.name)
-                    ref_file_ids.append(file_id)
-                else:
-                    logger.warning(f"图片文件不存在: {img}")
-
+        ref_file_ids = await self.prepare_ref_file_ids(images)
         if ref_file_ids:
-            search_enabled = False  # 有图片时禁用搜索
+            search_enabled = False  # 有图片/文件时默认禁用搜索
+        thinking_enabled = web_mode != "quick"
 
         return await self.chat_completion(
             prompt=prompt,
             ref_file_ids=ref_file_ids or None,
             search_enabled=search_enabled,
-            thinking_enabled=True,
+            thinking_enabled=thinking_enabled,
         )
