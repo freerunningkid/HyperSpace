@@ -133,8 +133,8 @@ def _thinking_enabled_for_web_mode(web_mode: str, profile: TaskProfile) -> bool:
         return False
     if web_mode in {"expert", "vision"}:
         return True
-    # auto mode: use TaskAnalyzer smart detection
-    return getattr(profile, "thinking_enabled", False)
+    # auto: let context_window_manager decide (avoid empty response)
+    return None
 
 
 def _resolve_search_enabled(
