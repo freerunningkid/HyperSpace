@@ -289,8 +289,7 @@ async def extract_from_browser(
         raise RuntimeError(
             f"无法连接到 Chrome CDP (端口 {cdp_port}). "
             f"请先以调试模式启动 Chrome:\n"
-            f'  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" '
-            f'--remote-debugging-port=9222'
+            f"  chrome --remote-debugging-port=9222"
         )
 
     # ── 连接 Playwright ──
