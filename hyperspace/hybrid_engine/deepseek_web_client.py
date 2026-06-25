@@ -582,6 +582,7 @@ class DeepSeekWebClient:
         pow_response = challenge.with_answer(answer, target_path)
 
         headers = _default_headers(self._auth)
+        headers.pop("Content-Type", None)
         headers["x-ds-pow-response"] = pow_response
         headers["x-file-size"] = str(len(file_data))
 
