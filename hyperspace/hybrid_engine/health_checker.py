@@ -1,9 +1,9 @@
 """HealthChecker —— 服务健康检查.
 
 异步探测各执行器健康状态:
-- DeepSeek Web (chat.deepseek.com) — 内部 API 客户端
-- DeepSeek API (api.deepseek.com) — OpenAI 兼容 API
-- 智谱 GLM — 直接 API 调用
+- DeepSeek Web (chat.deepseek.com)
+- DeepSeek API (api.deepseek.com)
+- 智谱 GLM / GitHub GPT-4o / Agnes (始终可用)
 """
 
 from __future__ import annotations
@@ -37,6 +37,12 @@ class HealthResult:
     )
     zhipu: ServiceStatus = field(
         default_factory=lambda: ServiceStatus(name="zhipu", available=True)
+    )
+    github: ServiceStatus = field(
+        default_factory=lambda: ServiceStatus(name="github", available=True)
+    )
+    agnes: ServiceStatus = field(
+        default_factory=lambda: ServiceStatus(name="agnes", available=True)
     )
 
 
@@ -75,9 +81,9 @@ class HealthChecker:
             status = await coro
             results[status.name] = status
 
-        results["zhipu"] = ServiceStatus(
-            name="zhipu", available=True, checked_at=now
-        )
+        results["zhipu"] = ServiceStatus(name="zhipu", available=True, checked_at=now)
+        results["github"] = ServiceStatus(name="github", available=True, checked_at=now)
+        results["agnes"] = ServiceStatus(name="agnes", available=True, checked_at=now)
 
         self._cache = results
         self._last_check = now
@@ -92,15 +98,12 @@ class HealthChecker:
                 "d_id=" in auth["cookie"] or "ds_session_id=" in auth["cookie"]
             ):
                 return ServiceStatus(
-                    name="deepseek_web",
-                    available=True,
-                    latency_ms=0,
-                    checked_at=now,
+                    name="deepseek_web", available=True, latency_ms=0, checked_at=now,
                 )
         return ServiceStatus(
             name="deepseek_web",
             available=False,
-            error="无登录凭据 (需运行 python -m hyperspace.hybrid_engine.web_auth --extract)",
+            error="无登录凭据 (需运行 web_auth --auto)",
             checked_at=now,
         )
 
@@ -114,45 +117,33 @@ class HealthChecker:
                 latency = (time.time() - start) * 1000
                 if resp.status_code in (200, 401):
                     return ServiceStatus(
-                        name="deepseek_api",
-                        available=True,
-                        latency_ms=round(latency, 1),
-                        checked_at=now,
+                        name="deepseek_api", available=True,
+                        latency_ms=round(latency, 1), checked_at=now,
                     )
                 return ServiceStatus(
-                    name="deepseek_api",
-                    available=False, error=f"HTTP {resp.status_code}",
-                    checked_at=now,
+                    name="deepseek_api", available=False,
+                    error=f"HTTP {resp.status_code}", checked_at=now,
                 )
         except httpx.TimeoutException:
             return ServiceStatus(
-                name="deepseek_api",
-                available=False, error="timeout", checked_at=now,
+                name="deepseek_api", available=False, error="timeout", checked_at=now,
             )
         except httpx.RequestError as e:
             return ServiceStatus(
-                name="deepseek_api",
-                available=False, error=f"connection: {e}", checked_at=now,
+                name="deepseek_api", available=False,
+                error=f"connection: {e}", checked_at=now,
             )
         except Exception as e:
             return ServiceStatus(
-                name="deepseek_api",
-                available=False, error=str(e), checked_at=now,
+                name="deepseek_api", available=False, error=str(e), checked_at=now,
             )
 
     @staticmethod
     def _build_result(results: dict[str, ServiceStatus]) -> HealthResult:
         return HealthResult(
-            deepseek_web=results.get(
-                "deepseek_web",
-                ServiceStatus(name="deepseek_web", available=False),
-            ),
-            deepseek_api=results.get(
-                "deepseek_api",
-                ServiceStatus(name="deepseek_api", available=False),
-            ),
-            zhipu=results.get(
-                "zhipu",
-                ServiceStatus(name="zhipu", available=True),
-            ),
+            deepseek_web=results.get("deepseek_web", ServiceStatus(name="deepseek_web", available=False)),
+            deepseek_api=results.get("deepseek_api", ServiceStatus(name="deepseek_api", available=False)),
+            zhipu=results.get("zhipu", ServiceStatus(name="zhipu", available=True)),
+            github=results.get("github", ServiceStatus(name="github", available=True)),
+            agnes=results.get("agnes", ServiceStatus(name="agnes", available=True)),
         )

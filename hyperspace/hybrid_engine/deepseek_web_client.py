@@ -104,7 +104,7 @@ class DeepSeekAuth:
         if self.bearer and len(self.bearer) > 20:
             return True
         # 旧版 d_id Cookie
-        return bool(self.cookie) and "d_id=" in self.cookie
+        return bool(self.cookie) and ("d_id=" in self.cookie or "ds_session_id=" in self.cookie)
 
     def to_dict(self) -> dict:
         return {
@@ -326,7 +326,10 @@ class DeepSeekWebClient:
                 f"{BASE_URL}/api/v0/users/current",
                 headers=_default_headers(self._auth),
             )
-            return resp.status_code == 200
+            if resp.status_code != 200:
+                return False
+            data = resp.json()
+            return data.get("code") == 0
         except Exception:
             return False
 

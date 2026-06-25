@@ -25,11 +25,18 @@ import os
 import sys
 from pathlib import Path
 
+# ── 强制 UTF-8 输出，避免 Windows GBK 炸 emoji ──
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # ── 路径修正: 支持 python -m hyperspace.cli 和 python cli.py 两种启动 ──
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from dotenv import load_dotenv
+
+from hyperspace.config import ENV_FILE
 from hyperspace.hybrid_engine import HybridRouter
 from hyperspace.hybrid_engine.result_processor import ProcessedResult
 
@@ -48,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask = sub.add_parser("ask", help="一问一答模式")
     ask.add_argument("prompt", nargs="?", default="", help="提问内容")
     ask.add_argument("--mode", "-m", default="auto",
-                     choices=["auto", "force_web", "force_api", "force_zhipu"],
+                      choices=["auto", "force_web", "force_zhipu", "force_github", "force_agnes"],
                      help="路由模式 (默认 auto)")
     ask.add_argument("--web-mode", "-w", default="auto",
                      choices=["auto", "quick", "expert", "vision"],
@@ -65,7 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     # ── chat ──
     chat = sub.add_parser("chat", help="交互式对话")
     chat.add_argument("--mode", "-m", default="auto",
-                      choices=["auto", "force_web", "force_api", "force_zhipu"])
+                       choices=["auto", "force_web", "force_zhipu", "force_github", "force_agnes"])
     chat.add_argument("--web-mode", "-w", default="auto",
                       choices=["auto", "quick", "expert", "vision"])
     chat.add_argument("--search", "-s", action="store_true", default=None)
@@ -89,6 +96,9 @@ def _resolve_search(args) -> bool | None:
 
 async def cmd_ask(args: argparse.Namespace) -> None:
     """执行一问一答。"""
+    # 加载 .env 文件确保 API Key 可用
+    load_dotenv(ENV_FILE)
+
     prompt = args.prompt
     if not prompt and sys.stdin.isatty():
         prompt = sys.stdin.read()
@@ -96,7 +106,17 @@ async def cmd_ask(args: argparse.Namespace) -> None:
         print("请输入提问内容")
         sys.exit(1)
 
-    router = HybridRouter()
+    # 从环境变量读取 API Key 传入 HybridRouter
+    zhipu_key = os.environ.get("ZHIPU_API_KEY")
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+
+    zhipu_cfg = {"api_key": zhipu_key} if zhipu_key else None
+    deepseek_api_cfg = {"api_key": deepseek_key} if deepseek_key else None
+
+    router = HybridRouter(
+        zhipu_config=zhipu_cfg,
+        deepseek_api_config=deepseek_api_cfg,
+    )
     result: ProcessedResult = await router.execute(
         prompt=prompt,
         images=args.image,
@@ -111,13 +131,21 @@ async def cmd_ask(args: argparse.Namespace) -> None:
 
 async def cmd_chat(args: argparse.Namespace) -> None:
     """交互式多轮对话。"""
+    # 加载 .env 文件确保 API Key 可用
+    load_dotenv(ENV_FILE)
+
     print("╔══════════════════════════════════════╗")
     print("║     HyperSpace 交互模式              ║")
     print("║    输入 /bye 退出, /new 重置会话     ║")
     print("╚══════════════════════════════════════╝")
     print()
 
-    router = HybridRouter()
+    zhipu_key = os.environ.get("ZHIPU_API_KEY")
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+    router = HybridRouter(
+        zhipu_config={"api_key": zhipu_key} if zhipu_key else None,
+        deepseek_api_config={"api_key": deepseek_key} if deepseek_key else None,
+    )
     session_key = "cli-interactive"
     turn = 0
 
@@ -150,38 +178,59 @@ async def cmd_chat(args: argparse.Namespace) -> None:
         turn += 1
 
 
-def _box_line(text: str, width: int = 58) -> str:
-    """生成框内一行，两端各留一个空格，总宽 width. 自动处理中文/emoji 等宽字符。"""
-    vis = sum(2 if ord(c) > 0x2E80 else 1 for c in text)
-    pad = width - vis - 2  # 减去两端空格
-    return f"║ {text}{' ' * pad} ║"
+def _estimate_tokens(text: str) -> int:
+    """粗略估算 token 数."""
+    return max(1, int(len(text) * 0.3))
 
 
 def _print_result(result: ProcessedResult) -> None:
-    """打印路由结果，带明显分隔。"""
+    """打印路由结果，结构化输出供 Agent 解析和展示."""
     provider = result.used_executor or "?"
     model = result.used_model or ""
 
     engine_label = {
         "deepseek_web": "DeepSeek Web (¥0)",
-        "deepseek_api": "DeepSeek API",
         "zhipu": "智谱 GLM (¥0)",
+        "github": "GitHub GPT-4o (¥0)",
+        "agnes": "Agnes Flash (¥0)",
     }.get(provider, provider)
 
-    sep = '═' * 58
-    print(f"\n╔{sep}╗")
-    print(_box_line(f"🌐 {engine_label}"))
-    if model:
-        print(_box_line(f"   {model}"))
-    print(f"╚{sep}╝")
-
-    # 思维链
+    # ── Token 估算 ──
+    answer = result.answer or ""
     thinking = getattr(result, 'plan', '') or getattr(result, 'thinking', '')
-    if thinking:
-        print(f"\n── 推理过程 ──\n{thinking}\n──────────────\n")
+    total_text = thinking + answer if thinking else answer
+    est_tokens = _estimate_tokens(total_text)
 
-    # 回答
-    print(result.answer)
+    # 成本（¥）：使用 cost 模块的精确定价
+    try:
+        from hyperspace.cost import calculate_cost as calc, record as cost_record
+        # 所有 Web / 免费 Provider → ¥0
+        cost_rmb = 0.0
+        cost_record(
+            provider=provider, model=model or "unknown",
+            requested_tier=provider, actual_tier=provider,
+            prompt_tokens=0, completion_tokens=est_tokens,
+        )
+    except Exception:
+        cost_rmb = 0.0
+
+    # ── 引擎信息行 ──
+    sep = "─" * 60
+    model_suffix = f" · {model}" if model else ""
+    cost_str = f" | {est_tokens}tk · ¥{cost_rmb:.4f}" if cost_rmb > 0 else f" | {est_tokens}tk · ¥0"
+    print(f"\n{sep}")
+    print(f"[HyperSpace] 🌐 {engine_label}{model_suffix}{cost_str}")
+    print(sep)
+
+    # ── 推理过程 (如有) ──
+    if thinking:
+        print(f"\n[思考]")
+        print(thinking)
+        print(f"[思考结束]\n")
+
+    # ── 最终回答 ──
+    print(answer)
+    print(sep)
 
 
 def main() -> None:

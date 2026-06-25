@@ -1,9 +1,15 @@
-"""成本追踪 —— 记录每次命中的 provider/model/tier/token, 折算「等效节省」.
+"""成本追踪 —— 记录每次命中的 provider/model/token, 按 DeepSeek V4 官方定价折算.
 
-诚实口径 (符合执行闭环铁律, 不预设固定省 %):
-  - 实际成本: 免费档 = 0, 廉价档按官方 API 价折算
-  - 等效节省: 假设「同样请求走 Claude/GPT premium 价」减去「实际成本」
-  - 定价表可改 (PRICING 元组), 默认用公开档位近似值
+DeepSeek V4 定价 (元/百万 tokens, 2025-06):
+  ┌─────────────────┬──────────┬────────────┬────────┐
+  │ 模型            │ 输入(命中)│ 输入(未命中)│ 输出   │
+  ├─────────────────┼──────────┼────────────┼────────┤
+  │ V4 Flash        │ ¥0.02   │ ¥1.00      │ ¥2.00  │
+  │ V4 Pro          │ ¥0.025  │ ¥3.00      │ ¥6.00  │
+  └─────────────────┴──────────┴────────────┴────────┘
+
+HyperSpace Web 端: ¥0 (免费). 智谱 GLM: ¥0 (免费).
+
 日志写入 data/hyperspace_cost.log (gitignored), 一行 JSON 一条记录.
 """
 
@@ -15,33 +21,64 @@ from datetime import datetime
 
 from .config import COST_LOG
 
-# 每百万 token 价格 (美元). 仅作等效节省估算, 非结算依据.
-# 按公开文档近似值; 厂商调价时改这里即可. 缺省 (未知) 按 premium 估.
-# (provider, model 前缀) → (input $/M, output $/M)
+# 定价: (provider, model_prefix) → (input_cache_hit, input_cache_miss, output) 元/M tokens
+# DeepSeek V4 系列
 PRICING = {
+    # V4 Flash
+    ("deepseek", "deepseek-v4-flash"):             (0.02, 1.00, 2.00),
+    # V4 Pro
+    ("deepseek", "deepseek-v4-pro"):               (0.025, 3.00, 6.00),
+    # 旧版 deepseek-chat (兼容)
+    ("deepseek", "deepseek-chat"):                 (0.025, 3.00, 6.00),
     # 免费档
-    ("zhipu", "glm-4.7-flash"): (0.0, 0.0),
-    ("zhipu", "glm-4.6v-flash"): (0.0, 0.0),
-    # 廉价档
-    ("deepseek", "deepseek-chat"): (0.27, 1.10),
-    ("kimi", "moonshot-v1-32k"): (3.30, 3.30),
-    # premium (等效基线) —— 用 Claude 3.5 Sonnet 公开价作「如果不省钱会花多少」的锚
-    ("premium", "baseline"): (3.00, 15.00),
+    ("zhipu", "glm-4.7-flash"):                    (0.0, 0.0, 0.0),
+    ("zhipu", "glm-4.6v-flash"):                   (0.0, 0.0, 0.0),
+    ("deepseek_web", "deepseek-chat"):             (0.0, 0.0, 0.0),  # Web 端免费
+    ("github", "openai/gpt-4o"):                   (0.0, 0.0, 0.0),  # GitHub Models
+    ("agnes", "agnes-2.0-flash"):                  (0.0, 0.0, 0.0),  # Agnes
+    ("agnes", "agnes-image-2.1-flash"):            (0.0, 0.0, 0.0),  # Agnes
+    ("agnes", "agnes-video-v2.0"):                 (0.0, 0.0, 0.0),  # Agnes
 }
 
 
-def _price_for(provider: str, model: str) -> tuple[float, float]:
-    """查定价; 精确 provider+model 前缀匹配, 否则 0(保守)."""
+def _price_for(provider: str, model: str) -> tuple[float, float, float]:
+    """查定价; 精确 provider+model 前缀匹配, 未匹配返回 (0,0,0)."""
     for (p, m), price in PRICING.items():
         if provider == p and model.startswith(m):
             return price
-    return (0.0, 0.0)
+    return (0.0, 0.0, 0.0)
 
 
-def _equivalent_premium_cost(prompt_tokens: int, completion_tokens: int) -> float:
-    """「等效 premium 成本」= 若这请求走 premium 基线要花多少 (美元)."""
-    ip, op = PRICING[("premium", "baseline")]
-    return (prompt_tokens / 1_000_000) * ip + (completion_tokens / 1_000_000) * op
+def calculate_cost(
+    provider: str,
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cache_hit_tokens: int = 0,
+) -> dict:
+    """计算实际成本 (元).
+
+    Returns:
+        {input_cost, cache_hit_cost, output_cost, total_cost, all in RMB}
+    """
+    ip_hit, ip_miss, op = _price_for(provider, model)
+    cache_miss_tokens = max(prompt_tokens - cache_hit_tokens, 0)
+    input_cost = (cache_miss_tokens / 1_000_000) * ip_miss + (cache_hit_tokens / 1_000_000) * ip_hit
+    output_cost = (completion_tokens / 1_000_000) * op
+    total = input_cost + output_cost
+    return {
+        "input_cost_rmb": round(input_cost, 6),
+        "output_cost_rmb": round(output_cost, 6),
+        "total_cost_rmb": round(total, 6),
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "cache_hit_tokens": cache_hit_tokens,
+    }
+
+
+def estimate_tokens(text: str) -> int:
+    """粗略估算文本的 token 数 (中英文混合)."""
+    return max(1, int(len(text) * 0.3))
 
 
 def record(
@@ -52,12 +89,10 @@ def record(
     actual_tier: str,
     prompt_tokens: int,
     completion_tokens: int,
+    cache_hit_tokens: int = 0,
 ) -> dict:
-    """记录一次命中, 返回统计字典 (供 server 拼进返回元信息)."""
-    ip, op = _price_for(provider, model)
-    actual_cost = (prompt_tokens / 1_000_000) * ip + (completion_tokens / 1_000_000) * op
-    equivalent = _equivalent_premium_cost(prompt_tokens, completion_tokens)
-    saved = max(equivalent - actual_cost, 0.0)
+    """记录一次命中, 返回统计字典."""
+    cost = calculate_cost(provider, model, prompt_tokens, completion_tokens, cache_hit_tokens)
 
     entry = {
         "ts": datetime.now().isoformat(timespec="seconds"),
@@ -67,14 +102,14 @@ def record(
         "actual_tier": actual_tier,
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
-        "actual_cost_usd": round(actual_cost, 6),
-        "equivalent_premium_usd": round(equivalent, 6),
-        "saved_usd": round(saved, 6),
+        "cache_hit_tokens": cache_hit_tokens,
+        "input_cost_rmb": cost["input_cost_rmb"],
+        "output_cost_rmb": cost["output_cost_rmb"],
+        "total_cost_rmb": cost["total_cost_rmb"],
     }
     try:
         with COST_LOG.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError as e:
-        # 日志写失败不影响主流程
         print(f"[hyperspace] ⚠ 成本日志写入失败: {e}", file=sys.stderr, flush=True)
     return entry

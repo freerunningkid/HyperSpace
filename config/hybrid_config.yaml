@@ -1,12 +1,12 @@
-# HyperSpace 混合引擎配置 v2.0 (原生实现)
-# DeepSeek Web (原生 Python 客户端) ↔ DeepSeek API → 智谱 GLM (兜底)
+# HyperSpace 混合引擎配置 v2.1
+# 四级降级链: DeepSeek Web → GitHub GPT-4o → 智谱 GLM → Agnes
 
 routing:
   default_executor: "deepseek_web"
-  fallback_order: ["deepseek_web", "deepseek_api", "zhipu"]
+  fallback_order: ["deepseek_web", "github", "zhipu", "agnes"]
   rules:
     - condition: "has_image"
-      executor: "deepseek_web"
+      executor: "deepseek_web"        # Web vision 主力识图
     - condition: "needs_search"
       executor: "deepseek_web"
     - condition: "needs_planning"
@@ -14,11 +14,11 @@ routing:
     - condition: "is_long"
       executor: "deepseek_web"
     - condition: "needs_coding"
-      executor: "deepseek_api"
+      executor: "deepseek_web"        # Web 代码能力足够
     - condition: "needs_translation"
-      executor: "deepseek_api"
+      executor: "deepseek_web"
     - condition: "needs_structured_output"
-      executor: "deepseek_api"
+      executor: "deepseek_web"
 
 executors:
   deepseek_web:
@@ -27,17 +27,26 @@ executors:
     search_enabled: true
     thinking_enabled: true
 
-  deepseek_api:
-    provider: "deepseek"
-    base_url: "https://api.deepseek.com"
-    model: "deepseek-chat"
+  github:
+    provider: "github"
+    base_url: "https://models.github.ai/inference"
+    model: "openai/gpt-4o"
     timeout: 60
+    key_env: "GITHUB_API_KEY"
 
   zhipu:
     provider: "zhipu"
     base_url: "https://open.bigmodel.cn/api/paas/v4"
     model: "glm-4.7-flash"
     timeout: 30
+    key_env: "ZHIPU_API_KEY"
+
+  agnes:
+    provider: "agnes"
+    base_url: "https://apihub.agnes-ai.com/v1"
+    model: "agnes-2.0-flash"
+    timeout: 30
+    key_env: "AGNES_API_KEY"
 
 logging:
   level: "INFO"

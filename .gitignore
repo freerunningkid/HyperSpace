@@ -35,3 +35,6 @@ Thumbs.db
 .claude/settings.local.json
 .claude/worktrees/
 .claude/worktree-lock*
+
+reasonix.toml
+_claude_sessions.json

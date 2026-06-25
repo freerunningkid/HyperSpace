@@ -36,7 +36,7 @@ Repository = "https://github.com/freerunningkid/HyperSpace"
 Issues = "https://github.com/freerunningkid/HyperSpace/issues"
 
 [project.optional-dependencies]
-experimental = [
+web = [
     "playwright>=1.40.0",
 ]
 dev = [

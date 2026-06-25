@@ -1,131 +1,165 @@
 <p align="center">
-  <img src="Logo.png" alt="HyperSpace" width="550">
+  <img src="Logo.png" alt="HyperSpace" width="480">
 </p>
 
-# HyperSpace — 免费推理 CLI
+<p align="center">
+  <strong>DeepSeek Web (¥0) 主力引擎 · 四级免费降级链 · Agent Skill + CLI</strong>
+</p>
 
-[![tests](https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml/badge.svg)](https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Claude Code Skill](https://img.shields.io/badge/Claude%20Code-SKILL.md-orange)](.claude/skills/hyperspace/SKILL.md)
-
-**把 chat.deepseek.com 的免费网页端变成本地 CLI。智能路由到 ¥0 Provider，自动降级。**
+<p align="center">
+  <a href="https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml"><img src="https://github.com/freerunningkid/HyperSpace/actions/workflows/tests.yml/badge.svg" alt="tests"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="license"></a>
+  <a href="#"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen" alt="PRs"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Agent-Skill-7C3AED" alt="skill"></a>
+  <br>
+  <a href="#"><img src="https://img.shields.io/badge/cost-¥0-free?color=success" alt="cost"></a>
+  <a href="#"><img src="https://img.shields.io/badge/tests-225%20passed-brightgreen" alt="tests"></a>
+  <a href="#"><img src="https://img.shields.io/badge/platform-Win%20%7C%20Mac%20%7C%20Linux-lightgrey" alt="platform"></a>
+</p>
 
 ---
 
-## 📋 项目简介
+## ✨ 是什么
 
-本地 Agent 调用大模型 API 时，大量日常问答和简单推理本可以不花一分钱。HyperSpace 是一个 **CLI 工具 + Claude Code Skill**，把 DeepSeek Web、智谱 GLM、SiliconFlow 等免费模型能力抽象成一条命令：
+HyperSpace 让你的 AI Agent 的**推理成本降到 ¥0**。
+
+它不是另一个 LLM 框架，而是一个薄薄的智能路由层：Agent 负责协调和决策（用少量 token），实际的推理、搜索、规划、识图全部转发给 **DeepSeek Web（免费）**。
 
 ```bash
-hyperspace ask "搜索今天的 AI 新闻" --search
+你说 "帮我规划一个学习路线"
+  → Agent 判定复杂度 → 自动调 hyperspace ask → DeepSeek Web 出计划 → 展示给你
+  → 成本：¥0
 ```
-
-> **核心创新**: 独立实现 DeepSeek Web 内部 API 调用链（PoW 求解、SSE 流、文件上传），Python 自包含，**零外部依赖**。
 
 ---
 
-## ⚡ 快速安装
-
-**要求:** Python 3.10+，一个免费智谱 API Key（[bigmodel.cn](https://bigmodel.cn/) 申请）
+## 🎮 5 秒体验
 
 ```bash
-# 1. 克隆
-git clone https://github.com/freerunningkid/HyperSpace.git
-cd HyperSpace
-
-# 2. 安装
-pip install -e ".[dev]"
-
-# 3. 配置 Key
-cp .env.example .env
-# 编辑 .env，填入 ZHIPU_API_KEY（免费兜底，必填）
-
-# 4. 验证就绪
-hyperspace info
+git clone https://github.com/freerunningkid/HyperSpace.git && cd HyperSpace
+pip install -e ".[web]"                     # 含 Playwright，自动凭据提取
+cp .env.example .env && vim .env           # 填 ZHIPU_API_KEY（免费兜底）
+hyperspace ask "你好"                       # 首次自动开浏览器登录，之后全自动
 ```
 
-> **💡 纯白嫖模式**: 安装 Playwright + 登录 chat.deepseek.com 后提取凭据，开启全部 ¥0 能力：
-> ```bash
-> pip install playwright && playwright install chromium
-> chrome.exe --remote-debugging-port=9222  # 调试模式启动 Chrome
-> # 登录 chat.deepseek.com，然后：
-> python -m hyperspace.hybrid_engine.web_auth --extract
-> ```
+```
+────────────────────────────────────────────────────────────
+[HyperSpace] 🌐 DeepSeek Web (¥0) · deepseek-chat | 31tk · ¥0
+────────────────────────────────────────────────────────────
+你好！我是 DeepSeek，很高兴为你服务 😊
+────────────────────────────────────────────────────────────
+```
+
+> 首次运行会自动安装 Playwright Chromium（~150MB），然后打开浏览器引导你登录 chat.deepseek.com。
+> **不需要装 Chrome**——任何浏览器都行，Playwright 自带。
 
 ---
 
-## 🚀 CLI 使用
+## 🧠 智能模式选择
 
-```bash
-# 一问一答
-hyperspace ask "量子计算是什么？"                        # 默认 ¥0 Web
-hyperspace ask "搜索 AI 最新进展" --search                # 联网搜索
-hyperspace ask "这张图里有什么" --image screenshot.png     # 识图
-hyperspace ask "用 Python 写快速排序"                      # 编程
-hyperspace ask "帮我规划学习计划" --web-mode expert        # 专家模式
+你只管说话，CLI 自动选模式和开关：
 
-# 交互式对话（输入 /bye 退出，/new 重置）
-hyperspace chat
+| 你说的话 | 自动判定 | 模式 | 🧠深度思考 | 🌐联网搜索 |
+|---------|---------|------|----------|----------|
+| "写个快速排序" | 代码生成 | `expert` | ✅ | ❌ |
+| "帮我规划学习路线" | 规划+长文本 | `expert` | ✅ | ❌ |
+| "搜索今天的 AI 新闻" | 搜索关键词 | `quick` | ❌ | ✅ |
+| "这张图里有什么" | 图片输入 | `vision` | ✅ | ❌ |
+| "翻译成英文" | 翻译 | `quick` | ❌ | ❌ |
+| "你好" | 简单问候 | `quick` | ❌ | ❌ |
 
-# 系统信息 / 成本
-hyperspace info
-hyperspace summary
+> ⚠️ Expert 模式不支持搜索——需要搜索自动走 quick
+> 手动覆盖：`--web-mode expert` `--search` `--mode force_zhipu`
+
+---
+
+## 🛡️ 四级降级链
+
+一条挂了自动切下一条，全部 **¥0**：
+
+```
+hyperspace ask "你的问题"
+  │
+  ├─ 1️⃣ DeepSeek Web     主力 · 问答/搜索/识图/规划
+  ├─ 2️⃣ GitHub GPT-4o    备胎 · OCR 极强
+  ├─ 3️⃣ 智谱 GLM         兜底 · 稳定可靠
+  └─ 4️⃣ Agnes Flash      最后防线
 ```
 
-输出自动带框分隔，和 Claude 的回复明显区分：
+手动指定：`--mode force_web` `--mode force_github` `--mode force_zhipu` `--mode force_agnes`
+
+---
+
+## 🔐 凭据全自动
+
+| 阶段 | 行为 |
+|------|------|
+| 首次使用 | 自动开浏览器 → 你登录 DeepSeek → Bearer 自动保存 |
+| 日常使用 | Bearer 有效直接调用，零延迟 |
+| Bearer 过期 | API 报错自动清除 → 下次自动刷新 |
+| 需要验证码 | 等你 5 分钟，不提前关浏览器 |
+
+---
+
+## 🤖 Agent Skill 集成
+
+安装后 Agent 自动感知。你说自然语言，它自动判断是否需要调 HyperSpace：
+
+| 你问 | Agent 行动 |
+|------|-----------|
+| 外部知识 / 搜索 | → `hyperspace ask ... --search` |
+| 复杂推理 / 规划 | → `hyperspace ask ... --web-mode expert` |
+| 截图问问题 | → `hyperspace ask ... --image <path>` |
+| 写代码 / 翻译 | → `hyperspace ask ...` |
+| 改本地代码 / git | → 不触发，本地处理 |
+
+> 支持 Claude Code · CodeWhale · Reasonix
+
+---
+
+## 🏗️ 架构
 
 ```
-╔══════════════════════════════════════════════════════════╗
-║ 🌐 DeepSeek Web (¥0)                                     ║
-╚══════════════════════════════════════════════════════════╝
-<回答内容>
+┌──────────────────────────────────────────────────────┐
+│                    HyperSpace                        │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│   User / Agent                                       │
+│       │                                              │
+│       ▼                                              │
+│   ┌─────────┐    ┌──────────────┐                   │
+│   │  CLI    │◄───│ TaskAnalyzer │ 零 token 判定      │
+│   └────┬────┘    └──────────────┘                   │
+│        │                                              │
+│        ▼                                              │
+│   ┌──────────────┐                                   │
+│   │ HybridRouter │  路由 · 降级 · 健康和检查         │
+│   └──────┬───────┘                                   │
+│          │                                            │
+│   ┌──────┼──────┬──────────┬──────────┐              │
+│   ▼      ▼      ▼          ▼          ▼              │
+│  Web   GitHub  Zhipu     Agnes      API              │
+│  ¥0     ¥0      ¥0        ¥0        ¥2-6/M          │
+│                                                      │
+└──────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🎯 Claude Code 自动触发
+## 📊 对比
 
-安装后自动注册 `hyperspace` skill。**不需要手动调**，正常聊天即可触发：
-
-| 你说 | 自动触发 |
-|------|----------|
-| "搜索一下今天的 AI 新闻" | → `hyperspace ask ... --search` |
-| 发了截图问"这是什么" | → `hyperspace ask ... --image <path>` |
-| "帮我规划学习计划" | → `hyperspace ask ... --web-mode expert` |
-| "翻译这段文字成英文" | → `hyperspace ask ...` |
-| "写个 Python 脚本" | → `hyperspace ask ...` |
-| "克隆仓库 / 改代码 / git" | → **不触发**，本地处理 |
-
----
-
-## 🧠 路由引擎
-
-| 引擎 | 成本 | 实现 | 适用场景 |
-|------|------|------|----------|
-| **DeepSeek Web** | **¥0** | 原生 Python (PoW + SSE + 文件上传) | 问答、搜索、识图、规划、长文本 |
-| **DeepSeek API** | ~¥2/M token | OpenAI 兼容 API | 代码、翻译、结构化输出 |
-| **智谱 GLM** | **¥0** | OpenAI 兼容 API | 兜底 |
-| **SiliconFlow** | **¥0** | OpenAI 兼容 API | 文本生成 |
-| **Agnes** | **¥0** | OpenAI 兼容 API | 文本 / 图片 / 视频 |
-| **Qwen** | 低 | OpenAI 兼容 API | 文本 / 识图 |
-
-### 路由优先级（auto 模式）
-
-| 条件 | 路由到 | 理由 |
-|------|--------|------|
-| 有图片 / 需搜索 / 规划 / 长文本 | **DeepSeek Web ¥0** | 原生能力 |
-| 代码 / 翻译 / 结构化输出 | **DeepSeek API** | 输出稳定 |
-| 默认 | **DeepSeek Web ¥0** | 经济优先 |
-| 降级链 | Web → API → 智谱 → SiliconFlow → Agnes | 逐级兜底 |
-
-### 模式覆盖
-
-| 参数 | 值 | 行为 |
-|------|-----|------|
-| `--mode` | `auto` / `force_web` / `force_api` / `force_zhipu` | 选择执行器 |
-| `--web-mode` | `auto` / `quick` / `expert` / `vision` | DeepSeek Web 内部产品模式 |
-| `--search` | 无值 | 启用联网搜索 |
+| | HyperSpace | 直接调 API | 其他路由工具 |
+|:---|:---:|:---:|:---:|
+| 主力引擎成本 | **¥0** | ¥2-6/M | 看配置 |
+| 备用引擎数 | 4 个免费 | 0 | 1-2 |
+| 自动模式选择 | ✅ | ❌ | ❌ |
+| 自动凭据刷新 | ✅ | ❌ | ❌ |
+| Agent Skill | ✅ | ❌ | ❌ |
+| 图片识别 | ✅ | 看模型 | |
+| 联网搜索 | ✅ | 看模型 | |
+| 配置复杂度 | 1 个 Key | N 个 Key | 多配置 |
+| 零外部依赖 | ✅ | ❌ | |
 
 ---
 
@@ -133,76 +167,33 @@ hyperspace summary
 
 ```
 HyperSpace/
-├── hyperspace/                   # 核心包
-│   ├── cli.py                    # CLI 入口 (ask/chat/info/summary)
-│   ├── server.py                 # MCP 兼容旧入口
-│   ├── hybrid_engine/            # 混合推理引擎
-│   │   ├── deepseek_web_client.py   # PoW + SSE + 文件上传
-│   │   ├── hybrid_router.py         # 8 级路由决策
-│   │   ├── task_analyzer.py         # 规则分析（零 token）
-│   │   ├── context_window_manager.py# 会话追踪 + 压缩
-│   │   ├── health_checker.py        # 异步健康探测
-│   │   ├── fallback.py              # 指数退避降级
-│   │   ├── result_processor.py      # 思维链提取
-│   │   └── web_auth.py              # 浏览器凭据提取
-│   ├── providers/                # 多 Provider 注册表
-│   │   ├── base.py, registry.py, capabilities.py
-│   │   ├── deepseek_web.py, deepseek_api.py
-│   │   ├── zhipu_api.py, qwen_api.py
-│   │   ├── siliconflow, agnes, chatglm_web...
-│   │   └── openai_compatible.py
-│   ├── cost.py                   # 成本追踪
-│   └── info.py / summary.py      # 系统信息
-├── config/                       # YAML 配置
-│   ├── providers.yaml            # 7+ Provider 注册
-│   ├── routing.yaml              # 路由规则
-│   └── hybrid_config.yaml        # 混合引擎配置
-├── tests/                        # 225 测试（零网络依赖）
-├── .claude/skills/hyperspace/    # Claude Code Skill
-├── VERSION
+├── hyperspace/
+│   ├── cli.py                      # CLI (ask/chat/info/summary)
+│   └── hybrid_engine/
+│       ├── deepseek_web_client.py  # PoW + SSE + 文件上传
+│       ├── hybrid_router.py        # 四级降级路由
+│       ├── task_analyzer.py        # 智能模式 (零 token)
+│       ├── web_auth.py             # 自动凭据 (Playwright)
+│       ├── health_checker.py       # 健康探测
+│       ├── fallback.py             # 指数退避降级
+│       ├── context_window_manager.py
+│       └── result_processor.py
+├── config/hybrid_config.yaml       # 降级链配置
+├── tests/                          # 225 测试 (零网络)
 └── pyproject.toml
 ```
-
----
-
-## 🛡️ 安全说明
-
-- **无硬编码密钥** — 所有 API Key 从 `.env` 读取
-- **敏感文件已 gitignore** — `.env`、`data/*.json`、`data/*.log` 均不提交
-- **成本日志透明** — 每次调用记录 provider/token/花费，不预设"省 90%"宣传口径
 
 ---
 
 ## 🔧 开发
 
 ```bash
-pytest tests/ -v              # 225 单元测试，零网络依赖
-python -m hyperspace.info     # 查看 Provider 健康状态
-python -m hyperspace.summary  # 成本摘要
+pip install -e ".[dev]"    # 含测试依赖
+pytest tests/ -v           # 225 全绿
 ```
 
 ---
 
-## 🧩 架构图
-
-```mermaid
-graph TD
-    User[你] -->|自然语言| Claude[Claude Code<br/>Skill 自动触发]
-    Claude -->|hyperspace ask| CLI[CLI]
-    CLI --> HR[HybridRouter]
-    HR -->|图片/搜索/规划| DW[DeepSeek Web ¥0]
-    HR -->|代码/翻译| DA[DeepSeek API]
-    HR -->|兜底| ZP[智谱 GLM ¥0]
-    HR -->|其他| MR[7+ Provider]
-    CLI -->|框式输出| User
-```
-
----
-
-## 📜 许可证
-
-[MIT](LICENSE) © 2026 freerunningkid
-
----
-
-*我的第一个开源项目，PR 和想法热烈欢迎！*
+<p align="center">
+  <sub>MIT · <a href="https://github.com/freerunningkid">freerunningkid</a> · PRs welcome ✨</sub>
+</p>

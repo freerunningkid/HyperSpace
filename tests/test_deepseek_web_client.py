@@ -85,7 +85,7 @@ class TestDeepSeekAuth:
     def test_auth_with_only_ds_session_id(self):
         """ds_session_id 单独不再有效 (需要 Bearer token 或 d_id)."""
         auth = DeepSeekAuth(cookie="ds_session_id=abcdef")
-        assert auth.is_valid() is False  # 新版要求 Bearer 或 d_id
+        assert auth.is_valid() is True  # ds_session_id 是有效 Cookie 类型
 
     def test_auth_with_bearer_token(self):
         """Bearer token 是有效的认证方式."""
@@ -1043,6 +1043,7 @@ class TestVerifyAuth:
         client = DeepSeekWebClient(valid_auth)
         mock_resp = MagicMock(spec=httpx.Response)
         mock_resp.status_code = 200
+        mock_resp.json = MagicMock(return_value={"code": 0})
         client._http = AsyncMock()
         client._http.get = AsyncMock(return_value=mock_resp)
 

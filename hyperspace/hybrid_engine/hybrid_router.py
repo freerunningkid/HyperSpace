@@ -133,9 +133,8 @@ def _thinking_enabled_for_web_mode(web_mode: str, profile: TaskProfile) -> bool:
         return False
     if web_mode in {"expert", "vision"}:
         return True
-    if profile.suggested_web_mode in {"expert", "vision"}:
-        return True
-    return False
+    # auto mode: use TaskAnalyzer smart detection
+    return getattr(profile, "thinking_enabled", False)
 
 
 def _resolve_search_enabled(
@@ -148,7 +147,8 @@ def _resolve_search_enabled(
         return search_enabled
     if web_mode == "vision" and (profile.has_image or profile.has_file):
         return False
-    return profile.needs_search
+    # auto mode: use TaskAnalyzer smart detection + explicit needs_search
+    return profile.needs_search or getattr(profile, "search_enabled", False)
 
 
 class HybridRouter:
@@ -169,6 +169,8 @@ class HybridRouter:
         self._cfg = self._load_config(config_path)
         self._deepseek_api_cfg = deepseek_api_config or {}
         self._zhipu_cfg = zhipu_config or {}
+        self._github_cfg = {"base_url": "https://models.github.ai/inference", "model": "openai/gpt-4o", "timeout": 60}
+        self._agnes_cfg = {"base_url": "https://apihub.agnes-ai.com/v1", "model": "agnes-2.0-flash", "timeout": 30}
 
         # v2.0: ProviderRegistry
         self._registry = provider_registry
@@ -188,11 +190,25 @@ class HybridRouter:
         )
 
     def _init_web_client(self):
-        """从已保存凭据初始化 DeepSeek Web 客户端和上下文管理器."""
+        """从已保存凭据初始化 DeepSeek Web 客户端和上下文管理器.
+
+        当 Cookie 有效但 Bearer Token 缺失时，自动尝试提取.
+        """
         auth_data = web_auth_mod.load_saved_auth()
         if auth_data:
             auth = DeepSeekAuth.from_dict(auth_data)
             if auth.is_valid():
+                # Cookie 有效但无 Bearer → 自动提取
+                if not auth.bearer:
+                    logger.info("Cookie 有效但 Bearer Token 缺失, 尝试自动提取...")
+                    try:
+                        result = web_auth_mod.auto_extract_sync()
+                        if result and result.get("bearer"):
+                            auth = DeepSeekAuth.from_dict(result)
+                            logger.info("Bearer Token 自动提取成功")
+                    except Exception as e:
+                        logger.warning(f"自动提取失败, 将使用 Cookie-only 模式: {e}")
+
                 self._web_client = DeepSeekWebClient(auth)
                 self._ctx_mgr = ContextWindowManager(
                     web_client=self._web_client,
@@ -323,6 +339,22 @@ class HybridRouter:
                 mode_source="explicit" if web_mode != "auto" else "inferred",
                 routing_strategy=routing_strategy,
                 expected_output=expected_output,
+            )
+        if mode == "force_github":
+            return RoutingDecision(
+                executor="github", provider_id="github",
+                model="openai/gpt-4o", reason="force_github mode",
+                web_mode=resolved_web_mode, search_enabled=False,
+                thinking_enabled=False, mode_source="explicit",
+                routing_strategy=routing_strategy, expected_output=expected_output,
+            )
+        if mode == "force_agnes":
+            return RoutingDecision(
+                executor="agnes", provider_id="agnes",
+                model="agnes-2.0-flash", reason="force_agnes mode",
+                web_mode=resolved_web_mode, search_enabled=False,
+                thinking_enabled=False, mode_source="explicit",
+                routing_strategy=routing_strategy, expected_output=expected_output,
             )
         if mode == "auto":
             return self._route_auto(
@@ -598,6 +630,8 @@ class HybridRouter:
             "deepseek_web": self._call_web,
             "deepseek_api": self._call_api,
             "zhipu": self._call_zhipu,
+            "github": self._call_github,
+            "agnes": self._call_agnes,
         }
 
         # v2.0: 从 registry 添加额外 provider
@@ -734,6 +768,17 @@ class HybridRouter:
         else:
             full_prompt = prompt
 
+        # Bearer pre-check (first call each session)
+        if self._web_client.auth.bearer and not getattr(self, "_bearer_checked", False):
+            self._bearer_checked = True
+            try:
+                if not await self._web_client.verify_auth():
+                    logger.warning("Bearer expired pre-check, auto-clear")
+                    web_auth_mod.save_auth({"cookie": "", "bearer": ""})
+                    self._web_client.auth.bearer = ""
+            except Exception:
+                pass
+
         try:
             # 通过上下文管理器发送 (自动处理压缩/新 session/故障恢复)
             resp = await self._ctx_mgr.chat(
@@ -745,6 +790,11 @@ class HybridRouter:
                 thinking_enabled=kwargs.get("thinking_enabled", True),
             )
         except RuntimeError as e:
+            err_msg = str(e)
+            # Bearer 过期 → 清除凭据，下次 _init_web_client 自动刷新
+            if "Missing Token" in err_msg or "40002" in err_msg:
+                logger.warning("Bearer Token 已过期，自动清除 (下次自动刷新)")
+                web_auth_mod.save_auth({"cookie": "", "bearer": ""})
             if "连续失败" in str(e):
                 # 连续失败, 触发降级 (让 _call_with_fallback 处理)
                 raise
@@ -825,6 +875,36 @@ class HybridRouter:
             else:
                 os.environ.pop("ZHIPU_API_KEY", None)
 
+    async def _call_github(
+        self, prompt, images=None, context=None, executor_name="github", **kwargs
+    ) -> tuple[str, str]:
+        """GitHub Models GPT-4o (免费 OpenAI 兼容)."""
+        from openai import AsyncOpenAI
+        key = os.environ.get("GITHUB_API_KEY", "")
+        if not key:
+            raise RuntimeError("GITHUB_API_KEY 未配置")
+        client = AsyncOpenAI(base_url=self._github_cfg["base_url"], api_key=key)
+        resp = await client.chat.completions.create(
+            model=self._github_cfg["model"], messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+        )
+        return resp.choices[0].message.content or "", self._github_cfg["model"]
+
+    async def _call_agnes(
+        self, prompt, images=None, context=None, executor_name="agnes", **kwargs
+    ) -> tuple[str, str]:
+        """Agnes Flash (免费 OpenAI 兼容)."""
+        from openai import AsyncOpenAI
+        key = os.environ.get("AGNES_API_KEY", "")
+        if not key:
+            raise RuntimeError("AGNES_API_KEY 未配置")
+        client = AsyncOpenAI(base_url=self._agnes_cfg["base_url"], api_key=key)
+        resp = await client.chat.completions.create(
+            model=self._agnes_cfg["model"], messages=[{"role": "user", "content": prompt}],
+            max_tokens=2048,
+        )
+        return resp.choices[0].message.content or "", self._agnes_cfg["model"]
+
     def _filter_available(
         self,
         order: list[str],
@@ -835,6 +915,8 @@ class HybridRouter:
             "deepseek_web": health.deepseek_web,
             "deepseek_api": health.deepseek_api,
             "zhipu": health.zhipu,
+            "github": health.github,
+            "agnes": health.agnes,
         }
         available = []
         for name in order:
@@ -844,8 +926,8 @@ class HybridRouter:
             status = health_map[name]
             if status and status.available:
                 available.append(name)
-            elif name == "zhipu":
-                available.append(name)  # Zhipu 始终可用
+            elif name in ("zhipu", "github", "agnes"):
+                available.append(name)  # 免费 Provider 始终可用
         return available
 
     # ── 配置加载 ──

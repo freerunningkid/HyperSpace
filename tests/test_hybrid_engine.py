@@ -63,10 +63,11 @@ class TestTaskAnalyzer:
         assert p.needs_search
         assert p.suggested_web_mode == "quick"
 
-    def test_complex_search_suggests_expert_with_search(self):
+    def test_complex_search_uses_quick(self):
         p = analyze_task("分析最近 AI 技术趋势并给出报告", images=None)
         assert p.needs_search
-        assert p.suggested_web_mode == "expert"
+        assert p.suggested_web_mode == "quick"  # Expert no search
+        assert p.search_enabled is True
 
     def test_long_text_detection(self):
         p = analyze_task("x" * 6000, images=None)
