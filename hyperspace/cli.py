@@ -225,7 +225,7 @@ def _print_result(result: ProcessedResult) -> None:
     model_suffix = f" · {model}" if model else ""
     cost_str = f" | {est_tokens}tk · ¥{cost_rmb:.4f}" if cost_rmb > 0 else f" | {est_tokens}tk · ¥0"
     print(f"\n{sep}")
-    print(f"[HyperSpace] 🌐 {engine_label}{model_suffix}{cost_str}")
+    print(f"[HyperSpace] 🐋 {engine_label}{model_suffix}{cost_str}")
     print(sep)
 
     # ── 推理过程 (如有) ──

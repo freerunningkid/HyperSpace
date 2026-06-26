@@ -202,5 +202,9 @@ pytest tests/ -v           # 225 passed
 ---
 
 <p align="center">
+  <img src="小鲸鱼-emoji-128.png" alt="🐋" width="64">
+</p>
+
+<p align="center">
   <sub>MIT · <a href="https://github.com/freerunningkid">freerunningkid</a></sub>
 </p>
