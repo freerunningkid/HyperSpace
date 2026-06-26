@@ -56,6 +56,7 @@ class SessionState:
     last_active: float = 0.0
     consecutive_failures: int = 0       # 连续失败计数
     last_message_id: str = ""           # 上一条消息 ID (用作 parent_message_id)
+    history_buffer: list[str] = field(default_factory=list)  # 滚动对话记录 (压缩用)
 
 
 @dataclass
@@ -223,7 +224,8 @@ class ContextWindowManager:
             thinking_enabled=thinking_enabled,
         )
 
-        # 更新状态
+        # 更新状态 — 继承旧会话的 summary + history_buffer
+        old = self._sessions.get(session_key)
         state = SessionState(
             session_id=session_id,
             message_count=1,
@@ -233,10 +235,11 @@ class ContextWindowManager:
             last_active=time.time(),
             last_message_id=resp.message_id,
         )
-        # 保留旧的 summary (如有)
-        old = self._sessions.get(session_key)
-        if old and old.summary:
-            state.summary = old.summary
+        if old:
+            if old.summary:
+                state.summary = old.summary
+            if old.history_buffer:
+                state.history_buffer = list(old.history_buffer)
 
         if session_key:
             self._sessions[session_key] = state
@@ -275,7 +278,7 @@ class ContextWindowManager:
         if self._compress_fn and state:
             # 尝试用 API 做智能压缩
             try:
-                history_text = await self._build_history_text(state)
+                history_text = self._build_history_text(state)
                 new_summary = await self._compress_fn(
                     _COMPRESS_PROMPT.format(history=history_text)
                 )
@@ -309,7 +312,8 @@ class ContextWindowManager:
             thinking_enabled=thinking_enabled,
         )
 
-        # 更新状态
+        # 更新状态 — 把旧缓冲 + 本次压缩的摘要快照整体继承
+        old_buffer = state.history_buffer if state else []
         new_state = SessionState(
             session_id=new_session_id,
             message_count=2,
@@ -318,6 +322,7 @@ class ContextWindowManager:
                 + _estimate_tokens(resp.text),
             context_limit=self._context_limit,
             summary=summary,
+            history_buffer=old_buffer + [f"[压缩摘要: {summary[:500]}]"],
             created_at=time.time(),
             last_active=time.time(),
         )
@@ -329,28 +334,31 @@ class ContextWindowManager:
         )
         return resp
 
-    async def _build_history_text(self, state: SessionState) -> str:
-        """构建供压缩用的历史文本.
-
-        目前只提供摘要和基本信息.
-        未来可扩展为从 DeepSeek 拉取历史消息.
-        """
-        parts = [
-            f"消息数: {state.message_count}",
-            f"估算 Token: {state.estimated_tokens}",
-        ]
+    def _build_history_text(self, state: SessionState) -> str:
+        """构建供压缩用的历史文本."""
+        buffer = "\n---\n".join(state.history_buffer) if state.history_buffer else ""
+        parts = []
         if state.summary:
-            parts.append(f"已有摘要: {state.summary}")
-        return "\n".join(parts)
+            parts.append(f"[已有摘要] {state.summary}")
+        if buffer:
+            parts.append(f"[对话记录]\n{buffer}")
+        if not parts:
+            parts.append(f"(消息数: {state.message_count}, 估算 Token: {state.estimated_tokens})")
+        return "\n\n".join(parts)
 
     def _update_state(self, state: SessionState, prompt: str, response: str,
                        message_id: str = ""):
-        """更新 session 状态."""
+        """更新 session 状态, 同时追加对话滚动记录."""
         state.message_count += 1
         state.estimated_tokens += _estimate_tokens(prompt) + _estimate_tokens(response)
         state.last_active = time.time()
         if message_id:
             state.last_message_id = message_id
+        # 追加滚动对话摘要 (只保留每轮最关键的前 2000 字符, 总数 ≤ 15 轮)
+        snippet = f"[用户] {prompt[:2000]}\n[助手] {response[:2000]}"
+        state.history_buffer.append(snippet)
+        if len(state.history_buffer) > 15:
+            state.history_buffer.pop(0)
 
     # ── 状态管理 ──
 

@@ -80,33 +80,110 @@ class Config:
 
 
 # ── 加载 ──
+def _load_hybrid_config() -> dict[str, Any]:
+    """加载 hybrid_config.yaml (单一配置源)."""
+    hybrid_path = CONFIG_DIR / "hybrid_config.yaml"
+    if hybrid_path.exists():
+        with hybrid_path.open(encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+def _providers_from_hybrid_config(hybrid: dict[str, Any]) -> dict[str, list[ProviderCandidate]]:
+    """从 hybrid_config.yaml 的 executors 段提取 provider 候选.
+
+    deepseek_web 使用 Web 凭据 (非 API key), 绑定到永存 env var 免被过滤.
+    """
+    executors = hybrid.get("executors", {})
+    providers: dict[str, list[ProviderCandidate]] = {}
+
+    def _mk(provider: str, model: str, base_url: str = "", key_env: str = "PATH") -> ProviderCandidate:
+        return ProviderCandidate(provider=provider, base_url=base_url, model=model, key_env=key_env)
+
+    # 按新 executor 名映射到旧 tier 体系
+    # 所有免费 web/api 候选归入 free_text, deepseek_web 同时归入 free_vision
+    free_text: list[ProviderCandidate] = []
+    free_vision: list[ProviderCandidate] = []
+    cheap_capable: list[ProviderCandidate] = []
+
+    for name, cfg in executors.items():
+        if not isinstance(cfg, dict):
+            continue
+        provider = cfg.get("provider", name)
+        model = cfg.get("model", name)
+        base_url = cfg.get("base_url", "")
+        key_env = cfg.get("key_env", "")
+
+        if name == "deepseek_web":
+            # Web 凭据认证, 不依赖 API key — 用永存的 env var
+            cand = _mk(provider, model, "https://chat.deepseek.com", "PATH")
+            free_text.append(cand)
+            free_vision.append(cand)
+        elif key_env:
+            cand = ProviderCandidate(provider=provider, base_url=base_url, model=model, key_env=key_env)
+            free_text.append(cand)
+            # zhipu 也加一层便宜备选
+            if name == "zhipu":
+                cheap_capable.append(cand)
+
+    providers["free_text"] = free_text
+    providers["free_vision"] = free_vision
+    providers["cheap_capable"] = cheap_capable
+    providers["premium"] = []
+    return providers
+
+
+def _routing_from_hybrid_config(hybrid: dict[str, Any]) -> RoutingRules:
+    """从 hybrid_config.yaml 的 routing 段提取路由规则."""
+    routing_raw = hybrid.get("routing", {})
+    return RoutingRules(
+        code_markers=["```", "def ", "class ", "import ", "function "],
+        complex_keywords=["代码", "bug", "调试", "优化", "架构"],
+        length_threshold=800,
+        escalation_chain=routing_raw.get("fallback_order",
+            ["free_text", "free_vision", "cheap_capable", "premium"]),
+    )
+
+
 def load_config() -> Config:
-    """加载 .env + 两份 yaml. 启动时调用一次."""
+    """加载 .env + providers/routing 配置.
+
+    优先读取 providers.yaml / routing.yaml;
+    缺失时从 hybrid_config.yaml 提取 (单一配置源).
+    """
     _ensure_dirs()
     load_dotenv(ENV_FILE)  # 缺失不报错
 
-    providers_raw: dict[str, Any] = {}
+    hybrid = _load_hybrid_config() if (not PROVIDERS_FILE.exists() or not ROUTING_FILE.exists()) else None
+
+    # ── providers ──
     if PROVIDERS_FILE.exists():
+        providers_raw: dict[str, Any] = {}
         with PROVIDERS_FILE.open(encoding="utf-8") as f:
             providers_raw = yaml.safe_load(f) or {}
 
-    providers: dict[str, list[ProviderCandidate]] = {}
-    for tier, lst in providers_raw.items():
-        if not isinstance(lst, list):
-            continue
-        providers[tier] = [
-            ProviderCandidate(
-                provider=item["provider"],
-                base_url=item["base_url"],
-                model=item["model"],
-                key_env=item["key_env"],
-            )
-            for item in lst
-            if isinstance(item, dict) and {"provider", "base_url", "model", "key_env"} <= item.keys()
-        ]
+        providers: dict[str, list[ProviderCandidate]] = {}
+        for tier, lst in providers_raw.items():
+            if not isinstance(lst, list):
+                continue
+            providers[tier] = [
+                ProviderCandidate(
+                    provider=item["provider"],
+                    base_url=item["base_url"],
+                    model=item["model"],
+                    key_env=item["key_env"],
+                )
+                for item in lst
+                if isinstance(item, dict) and {"provider", "base_url", "model", "key_env"} <= item.keys()
+            ]
+    else:
+        providers = _providers_from_hybrid_config(hybrid or {})
+        import logging
+        logging.getLogger("hyperspace").info("providers.yaml 缺失, 已从 hybrid_config.yaml 提取 %d tiers", len(providers))
 
-    routing = RoutingRules()
+    # ── routing ──
     if ROUTING_FILE.exists():
+        routing = RoutingRules()
         with ROUTING_FILE.open(encoding="utf-8") as f:
             r = yaml.safe_load(f) or {}
         c = r.get("complexity", {}) or {}
@@ -117,5 +194,9 @@ def load_config() -> Config:
             "escalation_chain",
             ["free_text", "free_vision", "cheap_capable", "premium"],
         ) or ["free_text", "free_vision", "cheap_capable", "premium"]
+    else:
+        routing = _routing_from_hybrid_config(hybrid or {})
+        import logging
+        logging.getLogger("hyperspace").info("routing.yaml 缺失, 已从 hybrid_config.yaml 提取")
 
     return Config(providers=providers, routing=routing)

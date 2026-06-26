@@ -68,6 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="多轮会话标识符")
     ask.add_argument("--image", "-i", type=str, action="append", default=None,
                      help="图片路径 (可多次)")
+    ask.add_argument("--context", "-c", type=str, default=None,
+                     help="额外系统指令 (附加到自动生成的上下文前缀)")
 
     # ── chat ──
     chat = sub.add_parser("chat", help="交互式对话")
@@ -77,6 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
                       choices=["auto", "quick", "expert", "vision"])
     chat.add_argument("--search", "-s", action="store_true", default=None)
     chat.add_argument("--no-search", action="store_true", default=None)
+    chat.add_argument("--context", "-c", type=str, default=None,
+                     help="额外系统指令")
 
     # ── info / summary / serve ── (直接委托已有模块)
     sub.add_parser("info", help="查看系统信息 (同 python -m hyperspace.info)")
@@ -124,6 +128,7 @@ async def cmd_ask(args: argparse.Namespace) -> None:
         session_key=args.session,
         web_mode=args.web_mode,
         search_enabled=_resolve_search(args),
+        context=args.context,
     )
 
     _print_result(result)
@@ -172,6 +177,7 @@ async def cmd_chat(args: argparse.Namespace) -> None:
             session_key=session_key,
             web_mode=args.web_mode,
             search_enabled=_resolve_search(args),
+            context=args.context,
         )
 
         _print_result(result)
@@ -235,7 +241,7 @@ def _print_result(result: ProcessedResult) -> None:
 
 def main() -> None:
     parser = build_parser()
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
 
     if args.command == "info":
         from hyperspace.info import main as info_main
@@ -252,8 +258,12 @@ def main() -> None:
         return
 
     if args.command == "serve":
-        os.execvp(sys.executable, [sys.executable,
-                                   str(_PROJECT_ROOT / "hyperspace" / "server.py")])
+        from hyperspace.proxy_server import main as proxy_main
+        import sys as _sys
+        # 透传未知参数给 proxy_server 的 argparse
+        _sys.argv = [_sys.argv[0]] + unknown
+        proxy_main()
+        return
 
     if args.command == "ask":
         asyncio.run(cmd_ask(args))

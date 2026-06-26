@@ -434,7 +434,10 @@ class DeepSeekWebClient:
 
         # PoW
         challenge = await self.create_pow_challenge(target_path)
-        answer = solve_pow(challenge)
+        answer = await asyncio.wait_for(
+            asyncio.to_thread(solve_pow, challenge),
+            timeout=30.0
+        )
         pow_response = challenge.with_answer(answer, target_path)
 
         # 构建请求
@@ -578,7 +581,10 @@ class DeepSeekWebClient:
         target_path = "/api/v0/file/upload_file"
 
         challenge = await self.create_pow_challenge(target_path)
-        answer = solve_pow(challenge)
+        answer = await asyncio.wait_for(
+            asyncio.to_thread(solve_pow, challenge),
+            timeout=30.0
+        )
         pow_response = challenge.with_answer(answer, target_path)
 
         headers = _default_headers(self._auth)

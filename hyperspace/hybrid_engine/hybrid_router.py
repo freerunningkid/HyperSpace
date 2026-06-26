@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import logging
@@ -151,6 +152,34 @@ def _resolve_search_enabled(
     return profile.needs_search or getattr(profile, "search_enabled", False)
 
 
+def _build_system_context(profile: TaskProfile) -> str:
+    """根据任务特征生成最小化系统指令 (控制 Web 模型行为)."""
+    if profile.has_image:
+        return _SYS["vision"]
+    if profile.needs_translation:
+        return _SYS["translation"]
+    if profile.needs_coding:
+        return _SYS["coding"]
+    if profile.needs_planning:
+        return _SYS["planning"]
+    if profile.needs_search:
+        return _SYS["search"]
+    if profile.needs_structured_output:
+        return _SYS["structured"]
+    return _SYS["default"]
+
+
+_SYS = {
+    "coding": "你是 DeepSeek，编程助手。输出正确可运行的代码。不确定时直说不知道，不编造不存在的 API 或库。",
+    "planning": "你是 DeepSeek，技术规划师。给出具体可执行的步骤，不空泛建议。不确定就直说。",
+    "translation": "你是 DeepSeek，翻译引擎。只输出翻译结果，不加任何解释或备注。",
+    "search": "你是 DeepSeek，联网研究助手。基于已知事实回答，不确定就标注「不确定」。",
+    "vision": "你是 DeepSeek，图像分析助手。详细精确描述你看到的内容，不要编造图像中没有的东西。",
+    "structured": "你是 DeepSeek，格式化输出助手。严格按要求的 JSON/表格格式输出，不附加冗余文字。",
+    "default": "你是 DeepSeek，精准推理助手。简体中文回复。不确定就说不知道，不编造答案。",
+}
+
+
 class HybridRouter:
     """混合推理路由器 —— 任务分析 → 健康检查 → 路由 → 执行 → 后处理.
 
@@ -188,6 +217,9 @@ class HybridRouter:
         self._fallback = FallbackManager(
             fallback_order=self._cfg["routing"]["fallback_order"]
         )
+        # 凭据刷新保护
+        self._auth_lock = asyncio.Lock()
+        self._auth_refresh_attempted = False
 
     def _init_web_client(self):
         """从已保存凭据初始化 DeepSeek Web 客户端和上下文管理器.
@@ -220,6 +252,31 @@ class HybridRouter:
         """返回已保存的凭据 (供 HealthChecker 使用)."""
         return web_auth_mod.load_saved_auth()
 
+    async def _refresh_web_auth(self) -> bool:
+        """尝试刷新 DeepSeek Web 凭据, 返回成功/失败.
+
+        含 asyncio.Lock 防止并发重复刷新;
+        含 _auth_refresh_attempted 标志防止同次 execute 内无限重试.
+        """
+        if self._auth_refresh_attempted:
+            return False
+        self._auth_refresh_attempted = True
+
+        async with self._auth_lock:
+            try:
+                result = await web_auth_mod.auto_extract()
+                if result and result.get("bearer"):
+                    self._web_client.auth = DeepSeekAuth.from_dict(result)
+                    self._ctx_mgr = ContextWindowManager(
+                        web_client=self._web_client,
+                        compress_fn=self._compress_via_api,
+                    )
+                    logger.info("凭据自动刷新成功")
+                    return True
+            except Exception as e:
+                logger.warning(f"凭据自动刷新失败: {e}")
+            return False
+
     # ── 公开入口 ──
 
     async def execute(
@@ -246,7 +303,13 @@ class HybridRouter:
           routing_strategy: 路由策略 (auto/web_first/zero_cost_first/api_first/...)
           expected_output: 输出类型 (answer/plan/json/structured/summary/critique)
         """
+        self._auth_refresh_attempted = False  # 每次请求可重试一次刷新
         profile = analyze_task(prompt, images=images, context=context)
+
+        # Auto-generate system context to control web model behavior
+        _context = _build_system_context(profile)
+        if context:
+            _context = f"{context}\n\n{_context}"
 
         decision = self._route(
             profile, mode,
@@ -271,7 +334,7 @@ class HybridRouter:
             health=health,
             prompt=prompt,
             images=images,
-            context=context,
+            context=_context,
             session_key=session_key,
         )
 
@@ -761,6 +824,9 @@ class HybridRouter:
                         web_client=self._web_client,
                         compress_fn=self._compress_via_api,
                     )
+            # 文件重载无效, 尝试自动提取凭据
+            if not self._web_client.auth.is_valid():
+                await self._refresh_web_auth()
 
         # 合并 context 到 prompt
         if context:
@@ -776,6 +842,8 @@ class HybridRouter:
                     logger.warning("Bearer expired pre-check, auto-clear")
                     web_auth_mod.save_auth({"cookie": "", "bearer": ""})
                     self._web_client.auth.bearer = ""
+                    # 尝试立即重新提取 Bearer 以便本次请求继续
+                    await self._refresh_web_auth()
             except Exception:
                 pass
 
@@ -793,8 +861,10 @@ class HybridRouter:
             err_msg = str(e)
             # Bearer 过期 → 清除凭据，下次 _init_web_client 自动刷新
             if "Missing Token" in err_msg or "40002" in err_msg:
-                logger.warning("Bearer Token 已过期，自动清除 (下次自动刷新)")
+                logger.warning("Bearer Token 已过期，自动清除并刷新")
                 web_auth_mod.save_auth({"cookie": "", "bearer": ""})
+                # 立即刷新, 下次 _call_web 入口 (或 fallback 后的下次请求) 会使用新凭据
+                await self._refresh_web_auth()
             if "连续失败" in str(e):
                 # 连续失败, 触发降级 (让 _call_with_fallback 处理)
                 raise
@@ -806,7 +876,17 @@ class HybridRouter:
         else:
             full_text = resp.text
 
-        return full_text, "deepseek-chat"
+        web_mode = kwargs.get("web_mode", "auto")
+        thinking = kwargs.get("thinking_enabled", True)
+        if web_mode == "expert":
+            model_label = "deepseek-v4-pro · deep thinking" if thinking else "deepseek-v4-pro"
+        elif web_mode == "vision":
+            model_label = "deepseek-v4-pro"
+        elif web_mode == "quick":
+            model_label = "deepseek-v4-flash"
+        else:
+            model_label = "deepseek-v4-flash"
+        return full_text, model_label
 
     async def _call_api(
         self,
